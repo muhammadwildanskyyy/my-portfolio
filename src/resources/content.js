@@ -15,7 +15,7 @@ const person = {
 
 const newsletter = {
   display: true,
-  title: <>Subscribe to {person.firstName}'s Newsletter</>,
+  title: <>Subscribe to {person.firstName} Newsletter</>,
   description: (
     <>
       I occasionally write about design, technology, and share thoughts on the
@@ -53,7 +53,7 @@ const home = {
   path: "/",
   image: "/images/og/home.jpg",
   label: "Home",
-  title: `${person.name}'s Portfolio`,
+  title: `${person.name} Portfolio`,
   description: `Portfolio website showcasing my work as a ${person.role}`,
   headline: <>Innovation Architects, Powered by Logic and Code.</>,
   featured: {
@@ -182,7 +182,7 @@ const about = {
           </>,
           <>
             As a Videographer & Editor, I record and produce dynamic video
-            content from the Google Cloud Developer Group Surabaya's technology
+            content from the Google Cloud Developer Group Surabaya technology
             seminars and events. I also edit this material into cohesive,
             professional videos, highlighting speakers, participants, and key
             technological insights, for publication across various platforms.
