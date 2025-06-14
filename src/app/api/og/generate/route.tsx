@@ -1,13 +1,13 @@
 import { ImageResponse } from "next/og";
-// import { baseURL, person } from "@/resources";
+import { baseURL, person } from "@/resources";
 // app/api/og/resources-light.ts
 
-export const baseURL = "https://demo.magic-portfolio.com";
-export const person = {
-  name: "Muhammad Wildan Yulio Ardana",
-  role: "Software Engineer",
-  avatar: `${baseURL}/images/avatar.jpg`,
-};
+// export const baseURL = "https://demo.magic-portfolio.com";
+// export const person = {
+//   name: "Muhammad Wildan Yulio Ardana",
+//   role: "Software Engineer",
+//   avatar: `${baseURL}/images/avatar.jpg`,
+// };
 
 export const runtime = "edge";
 
