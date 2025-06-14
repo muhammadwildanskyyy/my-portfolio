@@ -14,13 +14,13 @@ const routes = {
 const display = {
   location: true,
   time: true,
-  themeSwitcher: true
+  themeSwitcher: true,
 };
 
 // Enable password protection on selected routes
 // Set password in the .env file, refer to .env.example
 const protectedRoutes = {
-  "/work/automate-design-handovers-with-a-figma-to-code-pipeline": true,
+  "/work/automate-design-handovers-with-a-figma-to-code-pipeline": false,
 };
 
 // Import and set font for each variant
@@ -69,7 +69,7 @@ const style = {
   border: "playful", // rounded | playful | conservative
   surface: "translucent", // filled | translucent
   transition: "all", // all | micro | macro
-  scaling: "100" // 90 | 95 | 100 | 105 | 110
+  scaling: "100", // 90 | 95 | 100 | 105 | 110
 };
 
 const dataStyle = {
@@ -82,7 +82,7 @@ const dataStyle = {
   tick: {
     fill: "var(--neutral-on-background-weak)",
     fontSize: 11,
-    line: false
+    line: false,
   },
 };
 
@@ -168,23 +168,34 @@ const mailchimp = {
       thickness: 1,
       angle: 90,
     },
-  }
+  },
 };
 
 // default schema data
 const schema = {
   logo: "",
   type: "Organization",
-  name: "Once UI",
+  name: "Skyyy Portfolio",
   description: home.description,
-  email: "lorant@once-ui.com",
+  email: "muhammad.wildanya@gmail.com",
 };
 
 // social links
 const sameAs = {
-  threads: "https://www.threads.com/@once_ui",
-  linkedin: "https://www.linkedin.com/company/once-ui/",
-  discord: "https://discord.com/invite/5EyAQ4eNdS",
+  // linkedin: "https://www.linkedin.com/company/once-ui/",
+  // discord: "https://discord.com/invite/5EyAQ4eNdS",
 };
 
-export { display, mailchimp, routes, protectedRoutes, baseURL, fonts, style, schema, sameAs, effects, dataStyle };
+export {
+  display,
+  mailchimp,
+  routes,
+  protectedRoutes,
+  baseURL,
+  fonts,
+  style,
+  schema,
+  sameAs,
+  effects,
+  dataStyle,
+};

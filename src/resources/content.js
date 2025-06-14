@@ -1,14 +1,14 @@
 import { Logo } from "@once-ui-system/core";
 
 const person = {
-  firstName: "Selene",
-  lastName: "Yu",
+  firstName: "Muhammad Wildan",
+  lastName: "Yulio Ardana",
   get name() {
     return `${this.firstName} ${this.lastName}`;
   },
-  role: "Design Engineer",
+  role: "Software Engginer",
   avatar: "/images/avatar.jpg",
-  email: "example@gmail.com",
+  email: "muhammad.wildanya@gmail.com",
   location: "Asia/Jakarta", // Expecting the IANA time zone identifier, e.g., 'Europe/Vienna'
   languages: ["English", "Bahasa"], // optional: Leave the array empty if you don't want to display languages
 };
@@ -18,8 +18,8 @@ const newsletter = {
   title: <>Subscribe to {person.firstName}'s Newsletter</>,
   description: (
     <>
-      I occasionally write about design, technology, and share thoughts on the intersection of
-      creativity and engineering.
+      I occasionally write about design, technology, and share thoughts on the
+      intersection of creativity and engineering.
     </>
   ),
 };
@@ -30,17 +30,17 @@ const social = [
   {
     name: "GitHub",
     icon: "github",
-    link: "https://github.com/once-ui-system/nextjs-starter",
+    link: "https://github.com/muhammadwildanskyyy",
   },
   {
     name: "LinkedIn",
     icon: "linkedin",
-    link: "https://www.linkedin.com/company/once-ui/",
+    link: "https://www.linkedin.com/in/muhammadwildanyulioardana/",
   },
   {
-    name: "Threads",
-    icon: "threads",
-    link: "https://www.threads.com/@once_ui",
+    name: "Instagram",
+    icon: "instagram",
+    link: "https://www.instagram.com/muhammadwildan.mwya/",
   },
   {
     name: "Email",
@@ -55,16 +55,21 @@ const home = {
   label: "Home",
   title: `${person.name}'s Portfolio`,
   description: `Portfolio website showcasing my work as a ${person.role}`,
-  headline: <>Building bridges between design and code</>,
+  headline: <>Innovation Architects, Powered by Logic and Code.</>,
   featured: {
     display: true,
-    title: <>Recent project: <strong className="ml-4">Once UI</strong></>,
-    href: "/work/building-once-ui-a-customizable-design-system",
+    title: (
+      <>
+        Recent project: <strong className="ml-4">Skyyy</strong>
+      </>
+    ),
+    href: "/work",
   },
   subline: (
     <>
-      I'm Selene, a design engineer at <Logo icon="/trademarks/wordmark-dark.svg" style={{ display: "inline-flex", top: "0.25em", marginLeft: "-0.25em" }}/>, where I craft intuitive
-      <br /> user experiences. After hours, I build my own projects.
+      Hi! I am Ardan, a Software Engineer dedicated to building and designing
+      efficient and scalable software systems, transforming complex ideas into
+      working digital solutions.
     </>
   ),
 };
@@ -76,7 +81,7 @@ const about = {
   description: `Meet ${person.name}, ${person.role} from ${person.location}`,
   tableOfContent: {
     display: true,
-    subItems: false,
+    subItems: true,
   },
   avatar: {
     display: true,
@@ -90,9 +95,11 @@ const about = {
     title: "Introduction",
     description: (
       <>
-        Selene is a Jakarta-based design engineer with a passion for transforming complex challenges
-        into simple, elegant design solutions. Her work spans digital interfaces, interactive
-        experiences, and the convergence of design and technology.
+        As a full-stack Software Engineer with a focus on the backend, I design
+        the foundation of systems that are not only robust, but also
+        revolutionary. With expertise in Machine Learning, I turn data into
+        intelligence, pushing the boundaries of technology to create
+        transformative solutions.
       </>
     ),
   },
@@ -101,44 +108,101 @@ const about = {
     title: "Work Experience",
     experiences: [
       {
-        company: "FLY",
-        timeframe: "2022 - Present",
-        role: "Senior Design Engineer",
+        company: "Dewo Robotic",
+        timeframe: "2024 - Present",
+        role: "Senior Software Engineer, Wheeled Soccer Robot Division ",
         achievements: [
           <>
-            Redesigned the UI/UX for the FLY platform, resulting in a 20% increase in user
-            engagement and 30% faster load times.
+            Wheeled Soccer Robots: I'm actively involved in the research and
+            development (R&D) of software for wheeled soccer robots, focusing on
+            creating intelligent and agile autonomous systems.
           </>,
           <>
-            Spearheaded the integration of AI tools into design workflows, enabling designers to
-            iterate 50% faster.
+            Real-time Communication Architectures: My work includes R&D of
+            Real-time Database (RTDB) for robot communication, ensuring seamless
+            and immediate data exchange crucial for robot performance.
+          </>,
+          <>
+            Onboard Server Development: I've led the R&D of communication
+            servers within the robots, establishing robust internal networks
+            that facilitate complex operations and strategic decision-making.
+          </>,
+          <>
+            Advanced Robot Control Systems: A significant part of my expertise
+            lies in the R&D of sophisticated robot control systems, enabling
+            precise movements and adaptive behaviors in dynamic environments.
+          </>,
+          <>
+            Vision Systems: I specialize in the R&D of vision-based object
+            detection for robots, equipping them with the ability to accurately
+            perceive and interact with their surroundings.
+          </>,
+          <>
+            Recognized National Achievements: My efforts culminated in securing
+            the fourth place in the 2024 Region Indonesian Robot Contest and
+            also the fourth place in the 2024 National Indonesian Robot Contest,
+            demonstrating a proven track record of competitive success and
+            technical excellence.
           </>,
         ],
         images: [
           // optional: leave the array empty if you don't want to display images
           {
-            src: "/images/projects/project-01/cover-01.jpg",
-            alt: "Once UI Project",
+            src: "/images/work/dewo-robotic1.jpg",
+            alt: "All Team",
+            width: 16,
+            height: 9,
+          },
+          {
+            src: "/images/work/dewo-robotic2.jpg",
+            alt: "All Team",
             width: 16,
             height: 9,
           },
         ],
       },
       {
-        company: "Creativ3",
-        timeframe: "2018 - 2022",
-        role: "Lead Designer",
+        company: "Google Cloud Developer Surabaya",
+        timeframe: "",
+        role: "Photografer & Videografer ",
         achievements: [
           <>
-            Developed a design system that unified the brand across multiple platforms, improving
-            design consistency by 40%.
+            I'm responsible for accurately recording and organizing all project
+            processes, progress, and outcomes. I ensure all crucial information
+            is well-documented for future reference, knowledge sharing, and
+            reporting, especially in the context of events and organizational
+            activities.
           </>,
           <>
-            Led a cross-functional team to launch a new product line, contributing to a 15% increase
-            in overall company revenue.
+            As a Photographer, I capture pivotal moments and the atmosphere of
+            technology seminars and events hosted by the Google Cloud Developer
+            Group Surabaya. My goal is to visually represent the learning,
+            interactions, and innovations taking place at each event with
+            high-quality photographs.
+          </>,
+          <>
+            As a Videographer & Editor, I record and produce dynamic video
+            content from the Google Cloud Developer Group Surabaya's technology
+            seminars and events. I also edit this material into cohesive,
+            professional videos, highlighting speakers, participants, and key
+            technological insights, for publication across various platforms.
           </>,
         ],
-        images: [],
+        images: [
+          // optional: leave the array empty if you don't want to display images
+          {
+            src: "/images/work/google-cloud1.jpg",
+            alt: "All Team",
+            width: 16,
+            height: 9,
+          },
+          {
+            src: "/images/work/google-cloud1.1.jpg",
+            alt: "Doc Team",
+            width: 16,
+            height: 9,
+          },
+        ],
       },
     ],
   },
@@ -147,12 +211,8 @@ const about = {
     title: "Studies",
     institutions: [
       {
-        name: "University of Jakarta",
-        description: <>Studied software engineering.</>,
-      },
-      {
-        name: "Build the Future",
-        description: <>Studied online marketing and personal branding.</>,
+        name: "Surabaya State University | 2023 - present",
+        description: <>informatics engineering</>,
       },
     ],
   },
@@ -161,35 +221,86 @@ const about = {
     title: "Technical skills",
     skills: [
       {
-        title: "Figma",
-        description: <>Able to prototype in Figma with Once UI with unnatural speed.</>,
+        title: "JavaScript/TypeScript",
+        description: <>NodeJS | NextJS | React | Express | Hapi | NodeJS</>,
         // optional: leave the array empty if you don't want to display images
         images: [
-          {
-            src: "/images/projects/project-01/cover-02.jpg",
-            alt: "Project image",
-            width: 16,
-            height: 9,
-          },
-          {
-            src: "/images/projects/project-01/cover-03.jpg",
-            alt: "Project image",
-            width: 16,
-            height: 9,
-          },
+          // {
+          //   src: "/images/projects/project-01/cover-02.jpg",
+          //   alt: "Project image",
+          //   width: 16,
+          //   height: 9,
+          // },
+          // {
+          //   src: "/images/projects/project-01/cover-03.jpg",
+          //   alt: "Project image",
+          //   width: 16,
+          //   height: 9,
+          // },
         ],
       },
       {
-        title: "Next.js",
-        description: <>Building next gen apps with Next.js + Once UI + Supabase.</>,
+        title: "Database",
+        description: <>SQL | NoSQL | Prisma</>,
         // optional: leave the array empty if you don't want to display images
         images: [
-          {
-            src: "/images/projects/project-01/cover-04.jpg",
-            alt: "Project image",
-            width: 16,
-            height: 9,
-          },
+          // {
+          //   src: "/images/projects/project-01/cover-04.jpg",
+          //   alt: "Project image",
+          //   width: 16,
+          //   height: 9,
+          // },
+        ],
+      },
+      {
+        title: "C++",
+        description: <>Data Structure | OpenCV</>,
+        // optional: leave the array empty if you don't want to display images
+        images: [
+          // {
+          //   src: "/images/projects/project-01/cover-04.jpg",
+          //   alt: "Project image",
+          //   width: 16,
+          //   height: 9,
+          // },
+        ],
+      },
+      {
+        title: "Python",
+        description: <>Machine Learning | TensorFlow | OpenCV</>,
+        // optional: leave the array empty if you don't want to display images
+        images: [
+          // {
+          //   src: "/images/projects/project-01/cover-04.jpg",
+          //   alt: "Project image",
+          //   width: 16,
+          //   height: 9,
+          // },
+        ],
+      },
+    ],
+  },
+  otherSkill: {
+    display: true, // set to false to hide this section
+    title: "Other skills",
+    skills: [
+      {
+        title: "Media & Content",
+        description: <>Photography | Videography | Editor</>,
+        // optional: leave the array empty if you don't want to display images
+        images: [
+          // {
+          //   src: "/images/projects/project-01/cover-02.jpg",
+          //   alt: "Project image",
+          //   width: 16,
+          //   height: 9,
+          // },
+          // {
+          //   src: "/images/projects/project-01/cover-03.jpg",
+          //   alt: "Project image",
+          //   width: 16,
+          //   height: 9,
+          // },
         ],
       },
     ],
