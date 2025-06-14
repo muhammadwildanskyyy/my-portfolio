@@ -9,7 +9,7 @@ import { baseURL, person } from "@/resources";
 //   avatar: `${baseURL}/images/avatar.jpg`,
 // };
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   let url = new URL(request.url);
