@@ -1,5 +1,14 @@
 import { ImageResponse } from "next/og";
-import { baseURL, person } from "@/resources";
+// import { baseURL, person } from "@/resources";
+// app/api/og/resources-light.ts
+
+export const person = {
+  name: "Muhammad Wildan Yulio Ardana",
+  role: "Software Engineer",
+  avatar: "https://yourdomain.com/images/avatar.jpg", // Jangan pakai path lokal `/images/...`
+};
+
+export const baseURL = "https://yourdomain.com";
 
 export const runtime = "edge";
 
