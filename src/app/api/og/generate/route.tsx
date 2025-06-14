@@ -2,13 +2,12 @@ import { ImageResponse } from "next/og";
 // import { baseURL, person } from "@/resources";
 // app/api/og/resources-light.ts
 
+export const baseURL = "https://demo.magic-portfolio.com";
 export const person = {
   name: "Muhammad Wildan Yulio Ardana",
   role: "Software Engineer",
-  avatar: "https://yourdomain.com/images/avatar.jpg", // Jangan pakai path lokal `/images/...`
+  avatar: `${baseURL}/images/avatar.jpg`,
 };
-
-export const baseURL = "https://yourdomain.com";
 
 export const runtime = "edge";
 
@@ -23,84 +22,86 @@ export async function GET(request: Request) {
   */
 
   return new ImageResponse(
-    <div
-      style={{
-        display: "flex",
-        width: "100%",
-        height: "100%",
-        padding: "8rem",
-        background: "#151515",
-      }}
-    >
+    (
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          gap: "4rem",
-          fontStyle: "normal",
-          color: "white",
+          width: "100%",
+          height: "100%",
+          padding: "8rem",
+          background: "#151515",
         }}
       >
-        <span
-          style={{
-            fontSize: "8rem",
-            lineHeight: "8rem",
-            letterSpacing: "-0.05em",
-            whiteSpace: "pre-wrap",
-            textWrap: "balance",
-          }}
-        >
-          {title}
-        </span>
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: "5rem",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: "4rem",
+            fontStyle: "normal",
+            color: "white",
           }}
         >
-          <img
-            src={baseURL + person.avatar}
+          <span
             style={{
-              width: "12rem",
-              height: "12rem",
-              objectFit: "cover",
-              borderRadius: "100%",
+              fontSize: "8rem",
+              lineHeight: "8rem",
+              letterSpacing: "-0.05em",
+              whiteSpace: "pre-wrap",
+              textWrap: "balance",
             }}
-          />
+          >
+            {title}
+          </span>
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
-              gap: "0.75rem",
+              alignItems: "center",
+              gap: "5rem",
             }}
           >
-            <span
+            <img
+              src={baseURL + person.avatar}
               style={{
-                fontSize: "4.5rem",
-                lineHeight: "4.5rem",
-                whiteSpace: "pre-wrap",
-                textWrap: "balance",
+                width: "12rem",
+                height: "12rem",
+                objectFit: "cover",
+                borderRadius: "100%",
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
               }}
             >
-              {person.name}
-            </span>
-            <span
-              style={{
-                fontSize: "2.5rem",
-                lineHeight: "2.5rem",
-                whiteSpace: "pre-wrap",
-                textWrap: "balance",
-                opacity: "0.6",
-              }}
-            >
-              {person.role}
-            </span>
+              <span
+                style={{
+                  fontSize: "4.5rem",
+                  lineHeight: "4.5rem",
+                  whiteSpace: "pre-wrap",
+                  textWrap: "balance",
+                }}
+              >
+                {person.name}
+              </span>
+              <span
+                style={{
+                  fontSize: "2.5rem",
+                  lineHeight: "2.5rem",
+                  whiteSpace: "pre-wrap",
+                  textWrap: "balance",
+                  opacity: "0.6",
+                }}
+              >
+                {person.role}
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>,
+    ),
     {
       width: 1280,
       height: 720,
@@ -113,6 +114,6 @@ export async function GET(request: Request) {
         },
       ],
       */
-    },
+    }
   );
 }
