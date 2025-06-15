@@ -197,7 +197,7 @@ const about = {
             height: 9,
           },
           {
-            src: "/images/work/google-cloud1.1.jpg",
+            src: "/images/work/google-cloud1.1.JPG",
             alt: "Doc Team",
             width: 16,
             height: 9,
