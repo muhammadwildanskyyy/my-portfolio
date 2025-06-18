@@ -1,0 +1,47 @@
+---
+title: "Real-Time Digital Scoring System for Pencak Silat"
+publishedAt: "2025-06-18"
+summary: "This application revolutionizes Pencak Silat competitions by replacing manual scoring with a real-time, transparent digital system. It connects judges, jury councils, and timekeepers into a synchronized ecosystem, ensuring accurate scoring, instant penalty application, and efficient match management to uphold the integrity of the sport."
+images:
+  - "/images/projects/app-silat/admin.png"
+  - "/images/projects/app-silat/table.png"
+  - "/images/projects/app-silat/ready-jury.png"
+  - "/images/projects/app-silat/nilai-jury.png"
+  - "/images/projects/app-silat/dewan.png"
+  - "/images/projects/app-silat/monitor.png"
+  - "/images/projects/app-silat/time.png"
+team:
+  - name: "Nama Anda di Sini"
+    role: "Full-Stack Developer"
+    avatar: "/images/avatar.jpg"
+    linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
+---
+
+## Overview
+
+This Digital Scoring System for Pencak Silat is a web-based platform designed to address the inefficiencies and potential inaccuracies of manual scoring in martial arts competitions. By providing a centralized and real-time solution, the application empowers officials to conduct matches with higher transparency and accuracy. It features distinct interfaces for different roles (Admin, Judge, Jury Council, Timekeeper), all synchronized through a live communication channel. The system's primary goal is to digitize the entire scoring workflow, from participant management to the final verdict, ensuring every action is logged and results are calculated automatically.
+
+## Key Features
+
+- **Multi-Role Access Control**: A secure, role-based system ensuring users (Admin, Judge, Jury Council, Timekeeper) only have access to functionalities relevant to their duties.
+- **Real-Time Scoring Engine**: Utilizes WebSockets (via Socket.IO) to instantly broadcast scores, penalties, and time status to all connected officials, eliminating delays and discrepancies.
+- **Centralized Match Control**: The Jury Council can start, pause, and end matches, while also having the authority to issue penalties that are immediately reflected in the total score.
+- **Comprehensive Data Management**: An admin dashboard allows for full CRUD (Create, Read, Update, Delete) operations on participant data and system user accounts.
+- **Digital Match Archive & Logging**: Every match's detailed results are automatically saved and can be reviewed later, creating a reliable digital archive for analysis and record-keeping.
+- **Synchronized Timekeeping**: A dedicated interface for the Timekeeper to manage match time, perfectly in sync with the Jury Council's commands and visible to all parties.
+
+## Technologies Used
+
+- **Next.js**: A React framework used to build this full-stack application, providing server-side rendering (SSR) for performance and integrated API routes for backend logic.
+- **TypeScript**: Ensures type safety and improves code quality across the project, which is critical for a system where data accuracy is paramount.
+- **PostgreSQL**: A robust and reliable relational database chosen for storing structured data such as match results, participant details, and user credentials.
+- **Prisma**: A modern ORM that enables type-safe and intuitive database access, simplifying queries and migrations between the application and the PostgreSQL database.
+- **Socket.IO**: The core engine enabling real-time, bi-directional, and event-based communication that synchronizes the state of the match across all clients.
+
+## Challenges and Learnings
+
+Developing this real-time system presented several unique challenges that became significant learning opportunities. The primary challenge was implementing a flawless real-time synchronization with **Socket.IO**. Ensuring that every score from multiple judges, every penalty, and every time-tick were broadcasted and rendered instantly across all clients without race conditions was complex. This required careful state management on both the server and client, as well as designing a robust event-based architecture. Handling edge cases, such as a judge's temporary disconnection and seamless reconnection without data loss, taught us invaluable lessons in building resilient real-time applications.
+
+Another challenge was designing the database schema with **Prisma and PostgreSQL** to accurately model the complex relationships between matches, participants, judges, individual scores, and penalties. Structuring it for both write-intensive operations during a live match and efficient read operations for post-match analytics was a balancing act.
+
+Through this project, we gained deep expertise in full-stack development with Next.js and the intricacies of WebSocket communication. We learned the importance of designing a scalable and fault-tolerant system architecture from the outset. Ultimately, this project solidified our skills in building mission-critical applications where real-time accuracy and data integrity are not just features, but the core foundation of the product.

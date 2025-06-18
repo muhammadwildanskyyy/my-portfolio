@@ -119,7 +119,10 @@ export default function Home() {
       </Column>
       {/* show project */}
       <RevealFx translateY="16" delay={0.6}>
-        <Projects range={[1, 3]} />
+        <Projects range={[2, 2]} />
+      </RevealFx>
+      <RevealFx translateY="16" delay={0.6}>
+        <Projects range={[4, 4]}  />
       </RevealFx>
 
       {/* {routes["/blog"] && (
