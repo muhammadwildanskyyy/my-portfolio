@@ -33,9 +33,9 @@ export default function Blog() {
         {blog.title}
       </Heading>
       <Column fillWidth flex={1}>
-        <Posts range={[1, 1]} thumbnail direction="column" />
-        <Posts range={[2, 3]} thumbnail direction="row" />
-        <Posts range={[4]} columns="2" />
+        <Posts range={[1, 1]} thumbnail direction="row" />
+        <Posts range={[2, 3]} direction="row" columns="2" />
+        {/* <Posts range={[4]} columns="2" /> */}
       </Column>
       {/* {newsletter.display && <Mailchimp newsletter={newsletter} />} */}
     </Column>

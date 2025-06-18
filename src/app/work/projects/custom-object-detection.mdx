@@ -1,0 +1,52 @@
+---
+title: "Custom Object Detection With Tensorflow Lite"
+publishedAt: "2024-10-20"
+summary: "custom object detection with tensorflow lite, you can do object detection with your own data set. from labeling to deploying."
+images:
+  - "/images/projects/custom-object-detection/custom-object-detection.png"
+  - "/images/projects/custom-object-detection/custom-object-detection1.png"
+  - "/images/projects/custom-object-detection/custom-object-detection2.png"
+team:
+  - name: "Muhammad WWildan Yulio Ardana"
+    role: "Software Engineer"
+    avatar: "/images/avatar.jpg"
+    linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
+link: "https://github.com/muhammadwildanskyyy/custom-object-detection-tensorflow.git"
+---
+
+## Overview
+
+This project provides a complete and accessible framework for training custom, real-time object detection models. Built using Python and the TensorFlow Object Detection API, it leverages the efficient SSD-MobileNetV2 architecture to enable users to train a model to recognize any object of their choosing. The entire end-to-end workflow is encapsulated in a user-friendly Jupyter Notebook, designed to run on Google Colab, which guides users from data gathering and labeling through to GPU-accelerated training. The ultimate goal is to produce a lightweight, highly-optimized model (via TensorFlow Lite) that is ready for deployment on resource-constrained edge devices like the Raspberry Pi, making it ideal for practical applications in IoT, automation, and interactive AI.
+
+## Key Features
+
+- **User-Defined Object Detection**: Allows users to train detection models for any custom object simply by providing a labeled dataset, creating highly specialized solutions.
+- **Efficient Real-Time Inference**: Implementing the lightweight SSD-MobileNetV2 architecture using TensorFlow, resulting in a high-performance model optimized for real-time detection on edge devices.
+- **End-to-End Training Workflow**: Provides a comprehensive and structured Jupyter Notebook guide, covering the entire workflow from image collection, labeling, to model training.
+- **Cloud-Powered GPU Acceleration**: Leverage Google Colab as a training platform to access cloud-based GPUs for free, eliminating the need for expensive local hardware and complicated setups.
+- **Modular Training Parameters**: Compose notebooks with modularly configurable parameters (e.g. batch_size, learning_rate), allowing easy customization for different experimental scenarios.
+
+## Technologies Used
+
+- **TensorFlow**: The core deep learning framework from Google used to build, train, and run the object detection model.
+- **TensorFlow Object Detection API**: The specific toolkit from TensorFlow used to streamline the transfer learning process with pre-trained architectures like SSD-MobileNetV2.
+- **Python**: The primary programming language used for all project logic.
+- **Google Colab**: A cloud-based platform providing a Jupyter Notebook environment with free GPU access to accelerate the training process.
+- **Jupyter Notebook**: The interactive document format used to structure the code, visualizations, and step-by-step guide.
+- **TensorFlow Lite (TFLite)**: The framework for converting and optimizing TensorFlow models to run efficiently on resource-constrained edge devices.
+- **NumPy & OpenCV:**:Fundamental Python libraries for numerical computation, array manipulation, and various image processing operations.
+
+## Challenges and Learnings
+
+The project began with significant challenges in curating a high-quality custom dataset, a process that underscored the core lesson that model performance is fundamentally determined by the quality and diversity of its training data. During the training phase on Google Colab, computational challenges such as out-of-memory errors emerged, which taught us the importance of resource management through tuning hyperparameters such as batch_size to balance stability and speed. Moving into the deployment phase, the challenge shifted to bridging the model from the cloud to constrained edge devices, leading to crucial learnings about post-training optimizations by converting the model to the TensorFlow Lite (TFLite) format to enable efficient inference. Overall, the project emphasized that machine learning development is an iterative process, where achieving optimal solutions is not a straight line, but rather a continuous cycle of experimentation, monitoring, and refinement.
+
+
+## Project Repository
+
+Clone the git repository:
+<CodeBlock compact marginBottom="16" codes={[
+  {
+    code: "git clone https://github.com/muhammadwildanskyyy/custom-object-detection-tensorflow.git",
+    language: "bash"
+  }
+]} />

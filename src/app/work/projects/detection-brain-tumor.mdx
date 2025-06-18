@@ -1,0 +1,91 @@
+---
+title: "Detection Brain Tumor With CNN"
+publishedAt: "2024-12-07"
+summary: "This project is a complete deep learning system designed for the multi-class classification of brain tumors from MRI scans. It utilizes a Convolutional Neural Network (CNN) built with Python, TensorFlow, and Keras to accurately categorize images into one of four classes: Glioma, Meningioma, Pituitary, or No Tumor. The model development and training are conducted in a Google Colab environment to leverage cloud GPU acceleration. After training, the model is deployed using a Flask-based REST API, which allows users or other applications to upload a brain scan image and receive an instant prediction, transforming the analytical model into a practical, interactive tool."
+images:
+  - "/images/projects/detection-brain-tumor/detection-brain-tumor.png"
+  - "/images/projects/detection-brain-tumor/detection-brain-tumor1.png"
+
+team:
+  - name: "Muhammad WWildan Yulio Ardana"
+    role: "Software Engineer"
+    avatar: "/images/avatar.jpg"
+    linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
+link: "https://github.com/muhammadwildanskyyy/custom-object-detection-tensorflow.git"
+---
+
+## Overview
+
+This project is a complete deep learning system designed for the multi-class classification of brain tumors from MRI scans. It utilizes a Convolutional Neural Network (CNN) built with Python, TensorFlow, and Keras to accurately categorize images into one of four classes: Glioma, Meningioma, Pituitary, or No Tumor. The model development and training are conducted in a Google Colab environment to leverage cloud GPU acceleration. After training, the model is deployed using a Flask-based REST API, which allows users or other applications to upload a brain scan image and receive an instant prediction, transforming the analytical model into a practical, interactive tool.
+
+## Key Features
+
+- **Multi-Class Brain Tumor Classification:**: Allows users to train detection models for any custom object simply by providing a labeled dataset, creating highly specialized solutions.
+- **Deep CNN for High Accuracy**: Implementing the lightweight SSD-MobileNetV2 architecture using TensorFlow, resulting in a high-performance model optimized for real-time detection on edge devices.
+- **REST API for Real-Time Prediction**: Deploys the trained model using a Flask web server, exposing a REST API endpoint that allows users to upload an image via an HTTP request and receive an immediate classification result.
+- **Specialized Medical Image Processing**: Implements key preprocessing steps, including converting images to grayscale and resizing them to a uniform dimension, to enhance relevant feature extraction and improve model performance.
+- **Cloud-Based Model Training**: The entire model training and validation process is managed within a Google Colab notebook, streamlining setup and leveraging powerful cloud GPUs for efficient computation.
+
+## Technologies Used
+
+- **Backend & API: Flask**: Used to create a lightweight web server and expose the prediction model via a REST API.
+- **Deep Learning & AI: TensorFlow, Keras**: For building and training the CNN model.
+- **Programming Language Python: **: The core language for model development and the Flask server
+- **Data Processing: NumPy**: For numerical operations and data manipulation
+- **OpenCV / Pillow **: For image processing tasks
+- **Platform & Tools: Google Colab, Jupyter Notebook :**:For model development, training, and experimentation
+
+## Architecture CNN
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Defined model
+model = Sequential()
+# Layers Convolution 1
+model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(400, 400, 1)))
+# model.add(BatchNormalization())
+model.add(MaxPooling2D(pool_size=(2, 2)))
+# Layers Convolution 2
+model.add(Conv2D(64, (3, 3), activation='relu'))
+# model.add(BatchNormalization())
+model.add(MaxPooling2D(pool_size=(2, 2)))
+# Layers Convolution 3
+model.add(Conv2D(128, (3, 3), activation='relu'))
+# model.add(BatchNormalization())
+model.add(MaxPooling2D(pool_size=(2, 2)))
+# Layers Convolution 4 (Tambahan untuk meningkatkan kompleksitas model)
+model.add(Conv2D(256, (3, 3), activation='relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+# Layers Flatten
+model.add(Flatten())
+# Fully Connected Layers
+model.add(Dense(256, activation='relu'))
+model.add(Dense(128, activation='relu'))
+# Layers Output
+model.add(Dense(4, activation='softmax'))`,
+      language: "tsx",
+      label: "src/detection_brain_tumor_with_cnn.ipynb",
+    },
+  ]}
+/>
+
+## Challenges and Learnings
+
+The project began with significant challenges in curating a high-quality custom dataset, a process that underscored the core lesson that model performance is fundamentally determined by the quality and diversity of its training data. During the training phase on Google Colab, computational challenges such as out-of-memory errors emerged, which taught us the importance of resource management through tuning hyperparameters such as batch_size to balance stability and speed. Moving into the deployment phase, the challenge shifted to bridging the model from the cloud to constrained edge devices, leading to crucial learnings about post-training optimizations by converting the model to the TensorFlow Lite (TFLite) format to enable efficient inference. Overall, the project emphasized that machine learning development is an iterative process, where achieving optimal solutions is not a straight line, but rather a continuous cycle of experimentation, monitoring, and refinement.
+
+## Project Repository
+
+Curious about the detailed implementation? I have published the entire source code of this project on GitHub. You are free to view, download, or even develop it further.
+
+<CodeBlock
+  compact
+  marginBottom="16"
+  codes={[
+    {
+      code: "git clone https://github.com/muhammadwildanskyyy/detection-brain-tumor-with-cnn.git",
+      language: "bash",
+    },
+  ]}
+/>

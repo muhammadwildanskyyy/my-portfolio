@@ -1,0 +1,281 @@
+---
+title: "Building Your First Machine Learning Model: Rock, Paper, Scissors Image Classification."
+publishedAt: "2024-06-18"
+summary: "What if a computer could recognize these hand gestures? Well, in this article, we're going to do just that!"
+tag: "Machine Learning"
+
+---
+
+## Overview
+
+Hi everyone! Have you ever played Japanese rock, scissors, paper and thought, “What if a computer could recognize these hand gestures?” Well, in this article, we’re going to do just that!
+
+This is a step-by-step guide for those of you who are just starting out in the world of Machine Learning. By the end of this tutorial, you will have successfully created an image classification model that can distinguish between images of rock, scissors, and paper hands with very high accuracy.
+
+## Environment Preparation
+
+For this project, we will use Google Colab because it is easy to use and does not require complicated installation on our computer. All the libraries we need are also available.
+
+First, we need to install split-folders, a small library that is very helpful for splitting our image dataset into training data and validation data folders.
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Install the split-folders library
+pip install split-folders`,
+      language: "bash",
+      label: "bash",
+    },
+  ]}
+/>
+
+Next, we will import all the “tools” we need from TensorFlow and other libraries.
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Import the required libraries
+import tensorflow as tf
+import zipfile, os
+import splitfolders
+import numpy as np
+from google. colab import files
+from tensorflow.keras.preprocessing import image
+import matplotlib.pyplot as plt
+
+%matplotlib inline`,
+language: "tsx",
+label: "main.ipynb",
+},
+]}
+/>
+
+## Dataset
+
+Machine Learning models need to “learn” from data. For this project, we will use the Rock, Paper, Scissors dataset provided by Dicoding. This dataset contains 2,188 images of hands in various angles.
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Download dataset
+!wget --no-check-certificate \
+https://github.com/dicodingacademy/assets/releases/download/release/rockpaperscissors.zip \
+-O /tmp/rockpaperscissors.zip`,
+      language: "bash",
+      label: "bash",
+    },
+  ]}
+/>
+
+Once downloaded, the file is still in .zip format. We need to extract it and then split it into two sets:
+
+Training Data: The data that the model will see to learn (60% of the total data).
+Validation Data: The data used to test the model's performance during the training process (40% of the total data).
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Extracting data from zip file
+local_zip = '/tmp/rockpaperscissors.zip'
+zip_ref = zipfile.ZipFile(local_zip, 'r')
+zip_ref.extractall('/tmp')
+zip_ref.close()
+
+base_dir = '/tmp/rockpaperscissors/rps-cv-images'
+output_dir = '/tmp/rockpaperscissors_split'
+
+# Splitting data into training data (60%) and validation data (40%)
+splitfolders.ratio(base_dir, output=output_dir, ratio=(.6, .4), group_prefix=None)
+
+# Specifying directories for training and validation data
+train_dir = os.path.join(output_dir, 'train')
+val_dir = os.path.join(output_dir, 'val')`,
+      language: "tsx",
+      label: "main.ipynb",
+    },
+  ]}
+/>
+
+## Augmentasi
+
+To make our model more robust and not overfitting (too familiar with the training data), we need to do image augmentation. Augmentation is a technique for creating new variations of existing images by randomly rotating, flipping, or shifting them. We will use ImageDataGenerator from Keras.
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# Augmentation for training data
+train_datagen = ImageDataGenerator(
+rescale=1./255,
+rotation_range=20,
+horizontal_flip=True,
+shear_range = 0.2,
+fill_mode = 'nearest')
+
+# For validation data, we only do rescale (normalization)
+validation_datagen = ImageDataGenerator(
+rescale=1./255)`,
+      language: "tsx",
+      label: "main.ipynb",
+    },
+  ]}
+/>
+
+After defining the augmentation rules, we create a data generator that will take images from the directory, resize them to 150x150 pixels, and prepare them in batches (groups of data) to be trained by the model.
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `train_generator = train_datagen.flow_from_directory(
+        train_dir,
+        target_size=(150, 150),
+        batch_size=4,
+        class_mode='categorical'
+        )
+
+validation_generator = validation_datagen.flow_from_directory(
+        val_dir,
+        target_size=(150, 150),
+        batch_size=4,
+        class_mode='categorical'
+        )`,
+      language: "tsx",
+      label: "main.ipynb",
+    },
+  ]}
+/>
+
+## Model CNN
+
+Here comes the kicker! We will build the model architecture using Convolutional Neural Network (CNN), which is very powerful for image classification tasks.
+
+Our model consists of several layers:
+
+Conv2D & MaxPooling2D: This layer acts as the "eyes" of the model. Conv2D will look for visual patterns (such as finger shapes, hand edges), and MaxPooling2D will summarize important information from those patterns.
+Flatten: Converts data from 2D format (image) to 1D format so that it can be processed by the next layer.
+Dense: The "brain" layer that will make the final decision. The last layer uses softmax activation since we have 3 classes (rock, scissors, paper).
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Membangun model Sequential
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Conv2D(32, (3,3), activation='relu', input_shape=(150, 150, 3)),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Conv2D(64, (3,3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    tf.keras.layers.Conv2D(128, (3,3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    tf.keras.layers.Conv2D(512, (3,3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(256, activation='relu'),
+    tf.keras.layers.Dense(3, activation='softmax')
+])`,
+      language: "tsx",
+      label: "main.ipynb",
+    },
+  ]}
+/>
+
+## Training Model
+Once the model is designed, we need to compile it. Here we define the optimizer (how the model learns) and the loss function (how to measure the error).
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Compile model
+model.compile(loss = 'categorical_crossentropy', 
+              optimizer= tf.keras.optimizers.Adam(), 
+              metrics=['acc'])`,
+      language: "tsx",
+      label: "main.ipynb",
+    },
+  ]}
+/>
+
+Now, it’s time to train our model with model.fit(). We will train it for 25 epochs (one epoch means the model sees the entire training data once).
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Training the model
+history = model.fit(train_generator,
+                    epochs = 25,
+                    verbose = 2,
+                    validation_data = validation_generator)`,
+      language: "tsx",
+      label: "main.ipynb",
+    },
+  ]}
+/>
+
+Take a look at the output! We can see that the accuracy on both the training data (acc) and validation data (val_acc) keeps increasing. At the end of training, our model achieved a validation accuracy above 98%! This is a fantastic result.
+
+
+## Testing Models 
+
+Here comes the proof moment. Let's try to upload a new hand image that the model has never seen before and see if our model can guess it correctly.
+
+<CodeBlock
+  marginBottom="16"
+  codes={[
+    {
+      code: `# Uploading an image for testing
+uploaded = files.upload()
+
+for fn in uploaded.keys():
+# Pre-process the image
+path = fn
+img = image.load_img(path, target_size=(150, 150))
+imgplot = plt.imshow(img)
+plt.show()
+
+x = image.img_to_array(img)
+x = np.expand_dims(x, axis=0)
+x = x / 255.0
+
+# Prediction
+classes = model.predict(x)
+predicted_class = np.argmax(classes)
+
+print(fn)
+if predicted_class == 0:
+print('This Hand is Included in the Paper Symbol')
+elif predicted_class == 1:
+print('This Hand is Included in the Rock Symbol')
+else:
+print('This Hand is Included in the Scissors Symbol')`,
+      language: "tsx",
+      label: "main.ipynb",
+    },
+  ]}
+/>
+
+Congratulations! You have just successfully built, trained, and tested your first Machine Learning model from start to finish. We have learned how to prepare data, perform augmentation, design CNN architecture, and test its performance.
+This project shows how powerful Machine Learning can be in solving real-world problems, even for something as fun as rock, paper, scissors.
+
+## Project Repository
+
+Clone the git repository:
+
+<CodeBlock
+  compact
+  marginBottom="16"
+  codes={[
+    {
+      code: "git clone https://github.com/muhammadwildanskyyy/machine-learning.git",
+      language: "bash",
+    },
+  ]}
+/>
