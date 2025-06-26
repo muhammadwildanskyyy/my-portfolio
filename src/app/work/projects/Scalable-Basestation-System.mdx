@@ -1,0 +1,55 @@
+---
+title: "Scalable Basestation System for Real-Time Multi-Robot Communication and Autonomous Control"
+publishedAt: "2025-06-18"
+summary: "A basestation app built with Node.js and React for monitoring and controlling multiple soccer robots wirelessly and in real-time. Designed for regional and national competitions, enabling scalable communication and autonomous strategy execution."
+images:
+  - "/images/projects/basestation/basestation.png"
+team:
+  - name: "Muhammad WWildan Yulio Ardana"
+    role: "Software Engineer"
+    avatar: "/images/avatar.jpg"
+    linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
+---
+
+## Overview
+
+This project introduces a **scalable basestation system** designed for **real-time communication and autonomous control** of multiple wheeled soccer robots. Built using **Node.js**, **React**, and **Socket.IO**, the system serves as the central hub for monitoring robot parameters and deploying tactical strategies during regional and national robot soccer competitions.
+
+Operating under a **client-server architecture**, the basestation communicates wirelessly with all participating robots, collecting telemetry data such as speed, direction, voltage, and sensor status. At the same time, it allows the operator or autonomous agent to issue movement commands and adjust strategies dynamically.
+
+Whether for monitoring robot performance or executing fully autonomous plays, this system ensures fast, synchronized, and scalable communication across all units in the field.
+
+## Key Features
+
+- **Real-Time Multi-Robot Communication**: Synchronizes data between multiple robot clients and the central basestation using WebSocket technology.
+
+- **Robot Parameter Monitoring**: Displays essential metrics such as movement direction, speed, battery voltage, and sensor feedback in real time.
+
+- **Autonomous & Strategic Control**: Sends real-time commands to trigger autonomous movement patterns or adapt strategies during the game.
+
+- **Scalable Client-Server Architecture**: Designed to support multiple robots simultaneously, adaptable to the scale of any competition environment.
+
+- **Wireless Command and Feedback System**: Communicates over a wireless channel for both control and feedback, removing physical dependency.
+
+## Technologies Used
+
+- **Node.js**: Powers the backend server logic and WebSocket event handling.
+- **React**: Implements a responsive, real-time UI for monitoring and control.
+- **Socket.IO**: Enables reliable, low-latency two-way communication.
+- **Express.js**: Used to configure HTTP routes and support frontend-backend interaction.
+- **Linux-based Runtime**: Optimized to run on Linux devices, including embedded systems if needed.
+
+## Challenges and Learnings
+
+Developing a real-time communication platform for multiple robots posed several technical challenges:
+
+- **Data Synchronization and Latency**: Ensuring that all robot clients remain synchronized without introducing latency was critical. This required fine-tuning of Socket.IO event handling and packet structure.
+
+- **Scalability and Fault Tolerance**: As the number of robots increased, maintaining stable communication and graceful handling of disconnections became more complex.
+
+- **Monitoring Under High Load**: The UI needed to stay responsive even when multiple robots sent frequent data streams, leading to performance optimization in React rendering and WebSocket message management.
+
+- **Autonomy Coordination**: Integrating both manual control and autonomous strategy deployment involved clear command hierarchies and conflict handling between user input and programmed logic.
+
+Overall, this project emphasized the value of a modular, event-driven design and the importance of building reliable systems for fast-paced robotics competitions.
+
