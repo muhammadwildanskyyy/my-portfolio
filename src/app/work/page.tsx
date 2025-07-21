@@ -28,9 +28,10 @@ export default function Work() {
           image: `${baseURL}${person.avatar}`,
         }}
       />
-      <Projects  range={[2,2]} />
-      <Projects  range={[3,4]} />
-      <Projects  range={[1,1]} />
+      <Projects range={[2, 2]} />
+      <Projects range={[3, 5]} />
+      <Projects range={[1, 1]} />
+      {/* <Projects range={[5]} /> */}
     </Column>
   );
 }
