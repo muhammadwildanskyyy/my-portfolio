@@ -119,13 +119,13 @@ export default function Home() {
       </Column>
       {/* show project */}
       <RevealFx translateY="16" delay={0.6}>
-        <Projects range={[2, 2]} />
+        <Projects range={[3, 3]} />
       </RevealFx>
       <RevealFx translateY="16" delay={0.6}>
-        <Projects range={[4, 4]}  />
+        <Projects range={[5, 5]}  />
       </RevealFx>
 
-      {/* {routes["/blog"] && (
+      {routes["/blog"] && (
         <Flex fillWidth gap="24" mobileDirection="column">
           <Flex flex={1} paddingLeft="l" paddingTop="24">
             <Heading as="h2" variant="display-strong-xs" wrap="balance">
@@ -136,7 +136,7 @@ export default function Home() {
             <Posts range={[1, 2]} columns="2" />
           </Flex>
         </Flex>
-      )} */}
+      )}
       {/* {newsletter.display && <Mailchimp newsletter={newsletter} />} */}
     </Column>
   );
