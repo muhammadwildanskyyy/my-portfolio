@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkgnexa_showcase=globalThis.webpackChunkgnexa_showcase||[]).push([[5982],{5982(e,a,s){s.d(a,{createPacketServices:()=>c.$});var c=s(6527);s(6902)}}]);

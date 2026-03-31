@@ -54,7 +54,7 @@ export default async function Blog({
 
   return (
     <Row fillWidth>
-      <Row maxWidth={12} hide="m" />
+      <Row maxWidth={12} m={{ hide: true }} />
       <Row fillWidth horizontal="center">
         <Column as="section" maxWidth="xs" gap="l">
           <Schema
@@ -117,7 +117,7 @@ export default async function Blog({
         position="sticky"
         top="80"
         gap="16"
-        hide="m"
+        m={{ hide: true }}
       >
         <Row
           gap="12"

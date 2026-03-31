@@ -40,7 +40,7 @@ const social = [
   {
     name: "Instagram",
     icon: "instagram",
-    link: "https://www.instagram.com/muhammadwildan.mwya/",
+    link: "https://www.instagram.com/ardnskyyy/",
   },
   {
     name: "Email",
@@ -107,6 +107,46 @@ const about = {
     display: true, // set to false to hide this section
     title: "Work Experience",
     experiences: [
+      {
+        company: "PT Arka Data Pratama",
+        timeframe: "August 2025 - November 2025",
+        role: "Frontend Developer Intern",
+        achievements: [
+          <>
+            <strong>Frontend & UI Development:</strong> Developed an interactive and responsive user interface for the Real-time Monitoring Dashboard and Intelligent Drilling Dashboard projects using React.js with CSS Grid-based layout implementations.
+          </>,
+          <>
+            <strong>High-Performance Data Visualization:</strong> Resolved performance bottlenecks in large-scale data rendering by refactoring chart visualizations from ECharts (SVG-based) to D3.js using an HTML Canvas approach. This optimization enabled the dashboard to process and render tens of thousands of real-time data points without lag.
+          </>,
+          <>
+            <strong>Advanced Chart Interactivity:</strong> Designed and implemented advanced interactivity across various chart types (such as Scatter, Line, and Combo Charts) using D3.js, including Zoom, Pan, Tooltip, and Brush selection features.
+          </>,
+          <>
+            <strong>Complex Data Synchronization:</strong> Built cross-chart interaction synchronization (Brushing and Linking) in the "Depth-Based Analysis" module, where zoom or pan navigation on one chart is automatically applied to other comparison charts.
+          </>,
+          <>
+            <strong>State Management & Dynamic Filtering:</strong> Managed global application state using the React Context API for multi-well navigation features. Developed a dynamic cascading filter system for granular server data queries using Cube.js integration.
+          </>,
+          <>
+            <strong>Client-Side Data Processing:</strong> Developed raw data import functionality by parsing Excel files directly on the client side using the SheetJS library, complete with a preview table feature before the data is uploaded to the database.
+          </>,
+          <>
+            <strong>Data Export Capabilities:</strong> Implemented filtered JSON data extraction and conversion features to CSV format to facilitate reporting and advanced offline data analysis needs for engineers.
+          </>,
+        ],
+        images: [{
+          src: "/images/work/frontend-developer1.jpeg",
+          alt: "All Team",
+          width: 16,
+          height: 9,
+        },
+        {
+          src: "/images/work/frontend-developer2.jpeg",
+          alt: "me",
+          width: 16,
+          height: 9,
+        },],
+      },
       {
         company: "Dewo Robotic",
         timeframe: "2024 - Present",
@@ -221,62 +261,34 @@ const about = {
     title: "Technical skills",
     skills: [
       {
-        title: "JavaScript/TypeScript",
-        description: <>NodeJS | NextJS | React | Express | Hapi | NodeJS</>,
-        // optional: leave the array empty if you don't want to display images
-        images: [
-          // {
-          //   src: "/images/projects/project-01/cover-02.jpg",
-          //   alt: "Project image",
-          //   width: 16,
-          //   height: 9,
-          // },
-          // {
-          //   src: "/images/projects/project-01/cover-03.jpg",
-          //   alt: "Project image",
-          //   width: 16,
-          //   height: 9,
-          // },
-        ],
+        title: "Languages",
+        description: <>JavaScript | TypeScript | Golang | Python | C++</>,
+        images: [],
       },
       {
-        title: "Database",
-        description: <>SQL | NoSQL | Prisma</>,
-        // optional: leave the array empty if you don't want to display images
-        images: [
-          // {
-          //   src: "/images/projects/project-01/cover-04.jpg",
-          //   alt: "Project image",
-          //   width: 16,
-          //   height: 9,
-          // },
-        ],
+        title: "Frontend Frameworks",
+        description: <>React.js | Next.js</>,
+        images: [],
       },
       {
-        title: "C++",
-        description: <>Data Structure | OpenCV</>,
-        // optional: leave the array empty if you don't want to display images
-        images: [
-          // {
-          //   src: "/images/projects/project-01/cover-04.jpg",
-          //   alt: "Project image",
-          //   width: 16,
-          //   height: 9,
-          // },
-        ],
+        title: "Backend Frameworks",
+        description: <>Node.js | Express.js | NestJS | Hapi | Gin Gonic | Go Fiber</>,
+        images: [],
       },
       {
-        title: "Python",
-        description: <>Machine Learning | TensorFlow | OpenCV</>,
-        // optional: leave the array empty if you don't want to display images
-        images: [
-          // {
-          //   src: "/images/projects/project-01/cover-04.jpg",
-          //   alt: "Project image",
-          //   width: 16,
-          //   height: 9,
-          // },
-        ],
+        title: "Database & ORM",
+        description: <>PostgreSQL | MongoDB | Redis | Prisma | GORM | SQL | NoSQL</>,
+        images: [],
+      },
+      {
+        title: "Architecture & DevOps",
+        description: <>Docker | Kong API Gateway | Apache Kafka | Git | Jira | Taskfile</>,
+        images: [],
+      },
+      {
+        title: "Machine Learning & Services",
+        description: <>TensorFlow | OpenCV | Xendit | Cloudinary </>,
+        images: [],
       },
     ],
   },

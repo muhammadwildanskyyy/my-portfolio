@@ -1,0 +1,333 @@
+---
+title: "Designing Client-Server Architecture for Multi-Agent Robotic Systems"
+publishedAt: "2026-03-08"
+summary: "How to architect a scalable communication system for controlling multiple autonomous robots in real-time. Covers telemetry aggregation, command dispatching, autonomous strategy execution, and fault tolerance in competitive robotics."
+tag: "System Design"
+images:
+  - "/images/projects/basestation/basestation.png"
+---
+
+## Overview
+
+Controlling a single robot remotely is straightforward. Controlling **multiple robots simultaneously** in a time-critical competition environment — where latency is measured in milliseconds and a dropped connection means losing the match — is an entirely different engineering challenge.
+
+The **Scalable Basestation System** was designed for regional and national robot soccer competitions, serving as the central hub for monitoring and commanding a fleet of wheeled soccer robots. This article explores the architectural decisions behind building a reliable, low-latency, multi-agent communication system.
+
+## System Requirements
+
+Before designing the architecture, we defined the core requirements:
+
+1. **Real-time telemetry**: Receive sensor data from all robots at ≥10Hz (every 100ms)
+2. **Low-latency commands**: Operator commands must reach robots within 50ms
+3. **Scalability**: Support 3-11 robots per team without degradation
+4. **Fault tolerance**: Handle robot disconnections gracefully mid-match
+5. **Autonomous mode**: Execute pre-programmed strategies without operator intervention
+6. **Observability**: Real-time dashboard showing all robot states
+
+## Architecture Overview
+
+```
+                    ┌─────────────────────────┐
+                    │    Operator Dashboard    │
+                    │       (React UI)         │
+                    └───────────┬─────────────┘
+                                │
+                    ┌───────────┴─────────────┐
+                    │    Basestation Server    │
+                    │                         │
+                    │  ┌───────────────────┐  │
+                    │  │ Command Dispatcher│  │
+                    │  └───────────────────┘  │
+                    │  ┌───────────────────┐  │
+                    │  │ Telemetry Aggr.   │  │
+                    │  └───────────────────┘  │
+                    │  ┌───────────────────┐  │
+                    │  │ Strategy Engine   │  │
+                    │  └───────────────────┘  │
+                    │  ┌───────────────────┐  │
+                    │  │ State Manager     │  │
+                    │  └───────────────────┘  │
+                    └───────────┬─────────────┘
+                                │
+              ┌─────────────────┼─────────────────┐
+              │                 │                 │
+        ┌─────┴────┐     ┌─────┴────┐     ┌─────┴────┐
+        │ Robot 1  │     │ Robot 2  │     │ Robot 3  │
+        │ Keeper   │     │ Striker  │     │ Defender │
+        └──────────┘     └──────────┘     └──────────┘
+```
+
+## Component Deep Dive
+
+### 1. Telemetry Aggregation
+
+Each robot sends telemetry data at regular intervals. The aggregator collects, normalizes, and broadcasts this data:
+
+```typescript
+interface RobotTelemetry {
+  robotId: string;
+  role: 'KEEPER' | 'STRIKER' | 'DEFENDER' | 'MIDFIELDER';
+  position: { x: number; y: number; heading: number };
+  velocity: { linear: number; angular: number };
+  battery: { voltage: number; percentage: number };
+  sensors: {
+    ballDetected: boolean;
+    ballDistance: number;
+    ballAngle: number;
+    lineDetected: boolean;
+    obstacleDistances: number[];
+  };
+  motorStatus: {
+    left: { rpm: number; current: number };
+    right: { rpm: number; current: number };
+  };
+  timestamp: number;
+}
+
+class TelemetryAggregator {
+  private robotStates = new Map<string, RobotTelemetry>();
+  private updateCallbacks: Array<(states: Map<string, RobotTelemetry>) => void> = [];
+
+  update(telemetry: RobotTelemetry) {
+    // Validate timestamp to prevent stale data
+    const existing = this.robotStates.get(telemetry.robotId);
+    if (existing && existing.timestamp > telemetry.timestamp) {
+      return; // Ignore out-of-order packets
+    }
+
+    this.robotStates.set(telemetry.robotId, telemetry);
+
+    // Notify all subscribers
+    this.updateCallbacks.forEach(cb => cb(this.robotStates));
+  }
+
+  getState(): Map<string, RobotTelemetry> {
+    return new Map(this.robotStates);
+  }
+
+  onUpdate(callback: (states: Map<string, RobotTelemetry>) => void) {
+    this.updateCallbacks.push(callback);
+  }
+}
+```
+
+### 2. Command Dispatcher
+
+The dispatcher routes operator commands to specific robots or broadcasts globally:
+
+```typescript
+interface RobotCommand {
+  type: 'MOVE' | 'KICK' | 'STOP' | 'ROTATE' | 'STRATEGY';
+  targetRobotId?: string; // undefined = broadcast to all
+  payload: Record<string, any>;
+  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'EMERGENCY';
+  timestamp: number;
+}
+
+class CommandDispatcher {
+  private commandQueue: PriorityQueue<RobotCommand>;
+
+  dispatch(command: RobotCommand) {
+    // Emergency commands bypass the queue
+    if (command.priority === 'EMERGENCY') {
+      this.sendImmediate(command);
+      return;
+    }
+
+    this.commandQueue.enqueue(command);
+    this.processQueue();
+  }
+
+  private processQueue() {
+    while (!this.commandQueue.isEmpty()) {
+      const command = this.commandQueue.dequeue();
+
+      if (command.targetRobotId) {
+        // Send to specific robot
+        this.sendToRobot(command.targetRobotId, command);
+      } else {
+        // Broadcast to all connected robots
+        this.broadcastToAll(command);
+      }
+    }
+  }
+
+  private sendToRobot(robotId: string, command: RobotCommand) {
+    const socket = this.robotConnections.get(robotId);
+    if (!socket) {
+      console.warn(`Robot ${robotId} not connected, queuing command`);
+      this.pendingCommands.push(command);
+      return;
+    }
+    socket.emit('command', command);
+  }
+}
+```
+
+### 3. Strategy Engine
+
+The strategy engine executes pre-programmed autonomous plays, making decisions based on aggregate robot state:
+
+```typescript
+interface Strategy {
+  name: string;
+  evaluate: (state: Map<string, RobotTelemetry>) => RobotCommand[];
+}
+
+const DefensiveStrategy: Strategy = {
+  name: 'DEFENSIVE_FORMATION',
+  evaluate: (state) => {
+    const commands: RobotCommand[] = [];
+
+    for (const [robotId, telemetry] of state) {
+      if (telemetry.role === 'KEEPER') {
+        // Keeper tracks ball position
+        if (telemetry.sensors.ballDetected) {
+          commands.push({
+            type: 'MOVE',
+            targetRobotId: robotId,
+            payload: {
+              x: telemetry.position.x, // Stay on goal line
+              y: clamp(telemetry.sensors.ballAngle * 0.5, -40, 40),
+            },
+            priority: 'HIGH',
+            timestamp: Date.now(),
+          });
+        }
+      }
+
+      if (telemetry.role === 'DEFENDER') {
+        // Defenders position between ball and goal
+        commands.push({
+          type: 'MOVE',
+          targetRobotId: robotId,
+          payload: {
+            x: -60, // Defensive position
+            y: telemetry.sensors.ballDetected
+              ? telemetry.sensors.ballAngle * 0.3
+              : 0,
+          },
+          priority: 'NORMAL',
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    return commands;
+  },
+};
+
+class StrategyEngine {
+  private currentStrategy: Strategy | null = null;
+  private isAutonomous = false;
+
+  setStrategy(strategy: Strategy) {
+    this.currentStrategy = strategy;
+  }
+
+  enableAutonomous() {
+    this.isAutonomous = true;
+    this.runLoop();
+  }
+
+  private async runLoop() {
+    while (this.isAutonomous) {
+      if (this.currentStrategy) {
+        const state = this.telemetryAggregator.getState();
+        const commands = this.currentStrategy.evaluate(state);
+        commands.forEach(cmd => this.dispatcher.dispatch(cmd));
+      }
+      // Run at 20Hz (50ms intervals)
+      await sleep(50);
+    }
+  }
+}
+```
+
+### 4. Fault Tolerance
+
+In competition, robots disconnect — batteries die, wireless interference spikes, hardware fails. The system handles this gracefully:
+
+```typescript
+class ConnectionManager {
+  private heartbeatIntervals = new Map<string, NodeJS.Timer>();
+  private readonly HEARTBEAT_TIMEOUT = 3000; // 3 seconds
+
+  onRobotConnect(robotId: string, socket: Socket) {
+    // Start heartbeat monitoring
+    this.heartbeatIntervals.set(robotId, setInterval(() => {
+      const lastSeen = this.getLastTelemetryTime(robotId);
+      const elapsed = Date.now() - lastSeen;
+
+      if (elapsed > this.HEARTBEAT_TIMEOUT) {
+        this.handleRobotTimeout(robotId);
+      }
+    }, 1000));
+  }
+
+  private handleRobotTimeout(robotId: string) {
+    console.warn(`Robot ${robotId} timed out — no telemetry for 3s`);
+
+    // Notify dashboard
+    this.dashboardNamespace.emit('robot-warning', {
+      robotId,
+      type: 'CONNECTION_TIMEOUT',
+      message: `Robot ${robotId} may be disconnected`,
+    });
+
+    // If in autonomous mode, redistribute that robot's role
+    if (this.strategyEngine.isAutonomous) {
+      this.strategyEngine.handleRobotLost(robotId);
+    }
+  }
+}
+```
+
+## Communication Protocol Design
+
+The protocol between basestation and robots is designed for minimal overhead:
+
+```typescript
+// Binary protocol for minimal bandwidth
+// [Header: 1 byte][RobotID: 1 byte][Type: 1 byte][Payload: N bytes][Checksum: 1 byte]
+
+const COMMAND_TYPES = {
+  MOVE:     0x01,
+  KICK:     0x02,
+  STOP:     0x03,
+  ROTATE:   0x04,
+  SET_ROLE: 0x05,
+} as const;
+
+function encodeCommand(command: RobotCommand): Buffer {
+  const header = 0xAA; // Start byte
+  const robotId = parseInt(command.targetRobotId || '0');
+  const type = COMMAND_TYPES[command.type];
+
+  // Pack payload as fixed-size binary
+  const payload = Buffer.alloc(8);
+  payload.writeInt16BE(command.payload.x || 0, 0);
+  payload.writeInt16BE(command.payload.y || 0, 2);
+  payload.writeInt16BE(command.payload.speed || 0, 4);
+  payload.writeInt16BE(command.payload.angle || 0, 6);
+
+  const packet = Buffer.from([header, robotId, type, ...payload]);
+  const checksum = packet.reduce((sum, byte) => (sum + byte) & 0xFF, 0);
+
+  return Buffer.concat([packet, Buffer.from([checksum])]);
+}
+```
+
+## Lessons Learned
+
+1. **Network is unreliable**: Always design for packet loss and reordering
+2. **Time synchronization matters**: Robots and basestation must agree on time for coordinated plays
+3. **State > Events**: Track the latest state, don't try to replay events in real-time systems
+4. **Test under load**: Simulate 11 robots sending at 10Hz before competition day
+5. **Graceful degradation**: The system should work with 1 robot or 11 robots
+
+## Conclusion
+
+Building a multi-agent robotic control system taught us that real-time software engineering is fundamentally different from typical web development. Every millisecond matters, every dropped packet has visible consequences, and the system must be resilient to hardware failures that are completely outside your control.
+
+The architecture pattern — telemetry aggregation, command dispatch, strategy engine, and fault tolerance — is applicable far beyond robotics: fleet management, IoT platforms, multiplayer games, and any system where multiple agents need coordinated real-time control.

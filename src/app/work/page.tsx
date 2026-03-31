@@ -1,6 +1,7 @@
 import { Column, Meta, Schema } from "@once-ui-system/core";
 import { baseURL, about, person, work } from "@/resources";
-import { Projects } from "@/components/work/Projects";
+import { getPosts } from "@/app/utils/utils";
+import { WorkContent } from "@/components/work/WorkContent";
 
 export async function generateMetadata() {
   return Meta.generate({
@@ -13,6 +14,15 @@ export async function generateMetadata() {
 }
 
 export default function Work() {
+  const allProjects = getPosts(["src", "app", "work", "projects"]);
+
+  const sortedProjects = allProjects.sort((a, b) => {
+    return (
+      new Date(b.metadata.publishedAt).getTime() -
+      new Date(a.metadata.publishedAt).getTime()
+    );
+  });
+
   return (
     <Column maxWidth="m">
       <Schema
@@ -28,10 +38,7 @@ export default function Work() {
           image: `${baseURL}${person.avatar}`,
         }}
       />
-      <Projects range={[2, 2]} />
-      <Projects range={[3, 5]} />
-      <Projects range={[1, 1]} />
-      {/* <Projects range={[5]} /> */}
+      <WorkContent projects={sortedProjects} />
     </Column>
   );
 }

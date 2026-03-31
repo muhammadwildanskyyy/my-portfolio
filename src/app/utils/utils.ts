@@ -18,6 +18,8 @@ type Metadata = {
   tag?: string;
   team: Team[];
   link?: string;
+  techStack?: string[];
+  category?: string;
 };
 
 import { notFound } from 'next/navigation';
@@ -47,6 +49,8 @@ function readMDXFile(filePath: string) {
     tag: data.tag || [],
     team: data.team || [],
     link: data.link || "",
+    techStack: data.techStack || [],
+    category: data.category || "",
   };
 
   return { metadata, content };

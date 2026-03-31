@@ -18,25 +18,15 @@ For this project, we will use Google Colab because it is easy to use and does no
 
 First, we need to install split-folders, a small library that is very helpful for splitting our image dataset into training data and validation data folders.
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Install the split-folders library
-pip install split-folders`,
-      language: "bash",
-      label: "bash",
-    },
-  ]}
-/>
+```bash
+# Install the split-folders library
+pip install split-folders
+```
 
 Next, we will import all the “tools” we need from TensorFlow and other libraries.
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Import the required libraries
+```tsx
+# Import the required libraries
 import tensorflow as tf
 import zipfile, os
 import splitfolders
@@ -45,41 +35,27 @@ from google. colab import files
 from tensorflow.keras.preprocessing import image
 import matplotlib.pyplot as plt
 
-%matplotlib inline`,
-language: "tsx",
-label: "main.ipynb",
-},
-]}
-/>
+%matplotlib inline
+```
 
 ## Dataset
 
 Machine Learning models need to “learn” from data. For this project, we will use the Rock, Paper, Scissors dataset provided by Dicoding. This dataset contains 2,188 images of hands in various angles.
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Download dataset
+```bash
+# Download dataset
 !wget --no-check-certificate \
 https://github.com/dicodingacademy/assets/releases/download/release/rockpaperscissors.zip \
--O /tmp/rockpaperscissors.zip`,
-      language: "bash",
-      label: "bash",
-    },
-  ]}
-/>
+-O /tmp/rockpaperscissors.zip
+```
 
 Once downloaded, the file is still in .zip format. We need to extract it and then split it into two sets:
 
 Training Data: The data that the model will see to learn (60% of the total data).
 Validation Data: The data used to test the model's performance during the training process (40% of the total data).
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Extracting data from zip file
+```tsx
+# Extracting data from zip file
 local_zip = '/tmp/rockpaperscissors.zip'
 zip_ref = zipfile.ZipFile(local_zip, 'r')
 zip_ref.extractall('/tmp')
@@ -93,22 +69,15 @@ splitfolders.ratio(base_dir, output=output_dir, ratio=(.6, .4), group_prefix=Non
 
 # Specifying directories for training and validation data
 train_dir = os.path.join(output_dir, 'train')
-val_dir = os.path.join(output_dir, 'val')`,
-      language: "tsx",
-      label: "main.ipynb",
-    },
-  ]}
-/>
+val_dir = os.path.join(output_dir, 'val')
+```
 
 ## Augmentasi
 
 To make our model more robust and not overfitting (too familiar with the training data), we need to do image augmentation. Augmentation is a technique for creating new variations of existing images by randomly rotating, flipping, or shifting them. We will use ImageDataGenerator from Keras.
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `from tensorflow.keras.preprocessing.image import ImageDataGenerator
+```tsx
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 # Augmentation for training data
 train_datagen = ImageDataGenerator(
@@ -120,20 +89,13 @@ fill_mode = 'nearest')
 
 # For validation data, we only do rescale (normalization)
 validation_datagen = ImageDataGenerator(
-rescale=1./255)`,
-      language: "tsx",
-      label: "main.ipynb",
-    },
-  ]}
-/>
+rescale=1./255)
+```
 
 After defining the augmentation rules, we create a data generator that will take images from the directory, resize them to 150x150 pixels, and prepare them in batches (groups of data) to be trained by the model.
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `train_generator = train_datagen.flow_from_directory(
+```tsx
+train_generator = train_datagen.flow_from_directory(
         train_dir,
         target_size=(150, 150),
         batch_size=4,
@@ -145,12 +107,8 @@ validation_generator = validation_datagen.flow_from_directory(
         target_size=(150, 150),
         batch_size=4,
         class_mode='categorical'
-        )`,
-      language: "tsx",
-      label: "main.ipynb",
-    },
-  ]}
-/>
+        )
+```
 
 ## Model CNN
 
@@ -162,11 +120,8 @@ Conv2D & MaxPooling2D: This layer acts as the "eyes" of the model. Conv2D will l
 Flatten: Converts data from 2D format (image) to 1D format so that it can be processed by the next layer.
 Dense: The "brain" layer that will make the final decision. The last layer uses softmax activation since we have 3 classes (rock, scissors, paper).
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Membangun model Sequential
+```tsx
+# Membangun model Sequential
 model = tf.keras.models.Sequential([
     tf.keras.layers.Conv2D(32, (3,3), activation='relu', input_shape=(150, 150, 3)),
     tf.keras.layers.MaxPooling2D(2, 2),
@@ -179,46 +134,28 @@ model = tf.keras.models.Sequential([
     tf.keras.layers.Flatten(),
     tf.keras.layers.Dense(256, activation='relu'),
     tf.keras.layers.Dense(3, activation='softmax')
-])`,
-      language: "tsx",
-      label: "main.ipynb",
-    },
-  ]}
-/>
+])
+```
 
 ## Training Model
 Once the model is designed, we need to compile it. Here we define the optimizer (how the model learns) and the loss function (how to measure the error).
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Compile model
+```tsx
+# Compile model
 model.compile(loss = 'categorical_crossentropy', 
               optimizer= tf.keras.optimizers.Adam(), 
-              metrics=['acc'])`,
-      language: "tsx",
-      label: "main.ipynb",
-    },
-  ]}
-/>
+              metrics=['acc'])
+```
 
 Now, it’s time to train our model with model.fit(). We will train it for 25 epochs (one epoch means the model sees the entire training data once).
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Training the model
+```tsx
+# Training the model
 history = model.fit(train_generator,
                     epochs = 25,
                     verbose = 2,
-                    validation_data = validation_generator)`,
-      language: "tsx",
-      label: "main.ipynb",
-    },
-  ]}
-/>
+                    validation_data = validation_generator)
+```
 
 Take a look at the output! We can see that the accuracy on both the training data (acc) and validation data (val_acc) keeps increasing. At the end of training, our model achieved a validation accuracy above 98%! This is a fantastic result.
 
@@ -227,11 +164,8 @@ Take a look at the output! We can see that the accuracy on both the training dat
 
 Here comes the proof moment. Let's try to upload a new hand image that the model has never seen before and see if our model can guess it correctly.
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Uploading an image for testing
+```tsx
+# Uploading an image for testing
 uploaded = files.upload()
 
 for fn in uploaded.keys():
@@ -255,12 +189,8 @@ print('This Hand is Included in the Paper Symbol')
 elif predicted_class == 1:
 print('This Hand is Included in the Rock Symbol')
 else:
-print('This Hand is Included in the Scissors Symbol')`,
-      language: "tsx",
-      label: "main.ipynb",
-    },
-  ]}
-/>
+print('This Hand is Included in the Scissors Symbol')
+```
 
 Congratulations! You have just successfully built, trained, and tested your first Machine Learning model from start to finish. We have learned how to prepare data, perform augmentation, design CNN architecture, and test its performance.
 This project shows how powerful Machine Learning can be in solving real-world problems, even for something as fun as rock, paper, scissors.
@@ -269,13 +199,6 @@ This project shows how powerful Machine Learning can be in solving real-world pr
 
 Clone the git repository:
 
-<CodeBlock
-  compact
-  marginBottom="16"
-  codes={[
-    {
-      code: "git clone https://github.com/muhammadwildanskyyy/machine-learning.git",
-      language: "bash",
-    },
-  ]}
-/>
+```bash
+git clone https://github.com/muhammadwildanskyyy/machine-learning.git
+```

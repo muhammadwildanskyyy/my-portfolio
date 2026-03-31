@@ -1,0 +1,68 @@
+---
+title: "AI-Powered YouTube Transcript Summarizer & Analyzer"
+publishedAt: "2025-11-02"
+summary: "A full-stack web application that intelligently extracts YouTube video transcripts bypass API restrictions inside Edge Runtimes using 'youtubei.js' and processes them using OpenAI. It provides users with automated video summaries, contextual reviews, and advanced learning notes wrapped in a highly interactive, 3D-integrated UI."
+images: 
+  - "/images/work/youtube-transcript1.png"
+  - "/images/work/youtube-transcript2.png"
+  - "/images/work/youtube-transcript3.png"  
+team:
+  - name: "Muhammad Wildan Yulio Ardana"
+    role: "Full-Stack Engineer"
+    avatar: "/images/avatar.jpg"
+    linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
+link: "https://youtue-transcript.vercel.app/"
+github: "https://github.com/muhammadwildanskyyy/Youtube-Transcript"
+techStack:
+  - "Next.js"
+  - "React"
+  - "Vercel AI SDK"
+  - "OpenAI API"
+  - "youtubei.js"
+  - "Supabase"
+  - "NextAuth"
+  - "Framer Motion"
+  - "Three.js"
+  - "Tailwind CSS"
+category: "AI / SaaS Utility"
+---
+
+## Overview
+
+**Live App:** [https://youtue-transcript.vercel.app/](https://youtue-transcript.vercel.app/)
+
+**GitHub Repository:**
+```GitHub
+https://github.com/muhammadwildanskyyy/Youtube-Transcript.git
+```
+
+In the era of long-form video content, gleaning essential information quickly is a superpower. The **AI-Powered YouTube Transcript Summarizer** is a comprehensive full-stack application designed to do precisely that. By combining sophisticated data extraction techniques with advanced Large Language Models, this platform allows users to instantly transform hours of YouTube video into digestible, actionable text summaries and analytical reviews.
+
+Built from the ground up for high performance and seamless user experience, the application utilizes the latest advancements in the React ecosystem alongside intelligent background processing and robust database management.
+
+## Key Features
+
+- **Robust Transcript Extraction**: Leverages the unofficial `youtubei.js` internal API client to reliably fetch subtitle datasets from YouTube videos, effectively bypassing common signature restrictions and traditional scraping obstacles.
+- **AI Integration with Vercel AI SDK**: Seamlessly streams transcript data to OpenAI models using the `@ai-sdk/openai` module, enabling real-time generation of contextual summaries, video insights, and automated AI reviews.
+- **Dedicated Review & Summary Pipelines**: Features isolated API architectures (`/api/summary` and `/api/review`) that instruct the AI to process the extracted text for distinct use cases—whether a user needs a quick study note or a deep-dive content critique.
+- **Secure Authentication & Data Persistence**: Implements an enterprise-grade authentication combination employing `NextAuth` for standard identity verification and `Supabase` for managing secure, scalable user databases and storing historical request data.
+- **Highly Immersive User Interface**: Crafted using **Tailwind CSS** for rapid responsive styling, while utilizing **Framer Motion** for fluid micro-interactions. The inclusion of **Three.js** provides a cutting-edge 3D graphical experience on the frontend, breaking away from standard flat-web aesthetics.
+
+## Technologies Used
+
+- **Next.js 16 (App Router)**: Drives the server-side rendering logic and nested API network structures.
+- **React.js 19**: Manages high-end concurrent rendering features and state manipulations within the client boundary.
+- **Vercel AI SDK & OpenAI**: Powers the core AI processing brain, transforming raw video text into intelligent summaries.
+- **youtubei.js**: Reverses YouTube's Innertube API payload layers, enabling resilient media scraping.
+- **Supabase (PostgreSQL)**: An open-source Firebase alternative serving as the relational backbone and backend-as-a-service.
+- **NextAuth**: Handles complex user onboarding workflows and session safeguarding.
+- **Framer Motion & Three.js**: Dictates spatial animation choreography and spatial layouts across UI segments.
+- **Zod**: Ensures strict runtime typescript parsing and API payload schema validation.
+
+## The Engineering Challenge
+
+The primary challenge in building this application was establishing a reliable pipeline from raw data extraction to actionable AI insight within seconds. Traditional YouTube transcript APIs or naive scraping mechanisms often fail due to sudden payload alterations or bot-mitigations. By integrating `youtubei.js`, the platform intelligently queries the Innertube API infrastructure as an official client, fetching subtitle arrays accurately without rate-limiting penalties.
+
+Subsequently, sending hours of parsed transcript strings to OpenAI introduced token-limit management challenges. Effectively bridging the Vercel AI SDK to stream the prompt completions meant adjusting context lengths and employing `Zod` to assure the AI structured its responses in specific JSON formats. 
+
+Furthermore, orchestrating the interaction between the asynchronous stream chunking, Framer Motion text-reveal animations, and preserving those results into Supabase demanded a tightly coupled full-stack mastery, ensuring that users aren't left staring at endless loading spinners, but instead experience a real-time, thought-generating interface.

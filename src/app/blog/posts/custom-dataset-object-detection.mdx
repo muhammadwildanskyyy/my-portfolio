@@ -1,0 +1,331 @@
+---
+title: "Building a Custom Dataset for Object Detection: From Labeling to Training"
+publishedAt: "2026-02-25"
+summary: "A step-by-step guide to creating your own object detection dataset — from collecting images and choosing labeling tools, to data augmentation and training with the TensorFlow Object Detection API. Everything needed to build a custom detector from scratch."
+tag: "Machine Learning"
+images:
+  - "/images/projects/custom-object-detection/custom-object-detection1.png"
+---
+
+## Overview
+
+The most powerful object detection model in the world is useless if it can't detect **your** objects. Pre-trained models like YOLO and SSD are trained on COCO or VOC datasets — they can detect cars, dogs, and chairs, but not your custom factory parts, specific plant species, or game pieces.
+
+In the **Custom Object Detection** project, we built an end-to-end pipeline for training a model to detect any object of your choosing. This article covers the most critical and time-consuming part of that pipeline: **creating a high-quality custom dataset**.
+
+## The Dataset Pipeline
+
+```
+1. Image Collection     → Gather 200-1000+ images
+2. Image Labeling       → Draw bounding boxes
+3. Format Conversion    → Convert to TFRecord
+4. Data Augmentation    → Multiply and diversify
+5. Train/Val Split      → 80/20 split
+6. Training             → Fine-tune SSD-MobileNetV2
+```
+
+## Step 1: Image Collection
+
+### Quality Over Quantity
+
+A common misconception: more images = better model. In reality, **diversity matters more than volume**:
+
+```
+Good dataset (300 images):                Bad dataset (1000 images):
+✅ Different angles                       ❌ All from same angle
+✅ Different lighting                     ❌ Same lighting
+✅ Different backgrounds                  ❌ Same background
+✅ Various distances                      ❌ Same distance
+✅ Partial occlusions                     ❌ Always fully visible
+✅ Multiple objects per image             ❌ Only one object per image
+```
+
+### Collection Methods
+
+**Method 1: Capture with a camera (best quality)**
+
+```python
+# capture_images.py — Capture training images from webcam
+import cv2
+import os
+
+output_dir = 'dataset/raw_images'
+os.makedirs(output_dir, exist_ok=True)
+
+cap = cv2.VideoCapture(0)
+count = 0
+
+print("Press SPACE to capture, Q to quit")
+
+while True:
+    ret, frame = cap.read()
+    cv2.imshow('Capture', frame)
+
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord(' '):
+        filename = f'{output_dir}/img_{count:04d}.jpg'
+        cv2.imwrite(filename, frame)
+        print(f'Saved: {filename}')
+        count += 1
+    elif key == ord('q'):
+        break
+
+cap.release()
+print(f'Total images captured: {count}')
+```
+
+**Method 2: Web scraping (supplement)**
+
+```python
+# Use Google Images, Bing, or open datasets
+# Always respect copyright and licensing
+from bing_image_downloader import downloader
+
+downloader.download(
+    query='custom object name',
+    limit=200,
+    output_dir='dataset/web_images',
+    adult_filter_off=True,
+    timeout=60,
+)
+```
+
+**Method 3: Video frame extraction**
+
+```python
+import cv2
+
+video = cv2.VideoCapture('object_video.mp4')
+fps = video.get(cv2.CAP_PROP_FPS)
+frame_interval = int(fps * 0.5)  # Extract every 0.5 seconds
+
+frame_count = 0
+saved_count = 0
+
+while True:
+    ret, frame = video.read()
+    if not ret:
+        break
+
+    if frame_count % frame_interval == 0:
+        cv2.imwrite(f'dataset/frames/frame_{saved_count:04d}.jpg', frame)
+        saved_count += 1
+
+    frame_count += 1
+
+print(f'Extracted {saved_count} frames')
+```
+
+## Step 2: Image Labeling
+
+Labeling is the most time-intensive step. You need to draw bounding boxes around every instance of your object in every image.
+
+### Recommended Tools
+
+| Tool | Type | Best For |
+|------|------|----------|
+| LabelImg | Desktop app | Small datasets, offline work |
+| Roboflow | Web platform | Team collaboration, auto-augmentation |
+| CVAT | Self-hosted web | Large datasets, video annotation |
+| Label Studio | Self-hosted web | Multi-format, ML-assisted |
+
+### Using LabelImg
+
+```bash
+# Install
+pip install labelImg
+
+# Launch
+labelImg dataset/images/ dataset/labels/ dataset/classes.txt
+```
+
+### Label Format: Pascal VOC XML
+
+LabelImg generates XML annotations in Pascal VOC format:
+
+```xml
+<annotation>
+  <filename>img_0001.jpg</filename>
+  <size>
+    <width>640</width>
+    <height>480</height>
+  </size>
+  <object>
+    <name>custom_object</name>
+    <bndbox>
+      <xmin>120</xmin>
+      <ymin>85</ymin>
+      <xmax>350</xmax>
+      <ymax>290</ymax>
+    </bndbox>
+  </object>
+  <object>
+    <name>custom_object</name>
+    <bndbox>
+      <xmin>400</xmin>
+      <ymin>200</ymin>
+      <xmax>580</xmax>
+      <ymax>420</ymax>
+    </bndbox>
+  </object>
+</annotation>
+```
+
+### Labeling Best Practices
+
+1. **Tight bounding boxes**: Draw the box as close to the object as possible
+2. **Label partially visible objects**: If more than 30% is visible, label it
+3. **Consistent class names**: Use the exact same spelling for every instance
+4. **Label ALL instances**: Every object in the image must be labeled, even small or blurry ones
+5. **Take breaks**: Labeling fatigue leads to sloppy annotations
+
+## Step 3: Format Conversion
+
+TensorFlow Object Detection API uses **TFRecord** format. Convert your labeled data:
+
+```python
+# generate_tfrecord.py
+import tensorflow as tf
+import os
+import io
+from PIL import Image
+from lxml import etree
+
+def create_tf_example(image_path, xml_path, label_map):
+    # Read image
+    with open(image_path, 'rb') as f:
+        encoded_image = f.read()
+
+    image = Image.open(io.BytesIO(encoded_image))
+    width, height = image.size
+
+    # Parse XML annotation
+    tree = etree.parse(xml_path)
+    root = tree.getroot()
+
+    xmins, xmaxs, ymins, ymaxs = [], [], [], []
+    classes_text, classes = [], []
+
+    for obj in root.findall('object'):
+        class_name = obj.find('name').text
+        bbox = obj.find('bndbox')
+
+        xmins.append(float(bbox.find('xmin').text) / width)
+        xmaxs.append(float(bbox.find('xmax').text) / width)
+        ymins.append(float(bbox.find('ymin').text) / height)
+        ymaxs.append(float(bbox.find('ymax').text) / height)
+        classes_text.append(class_name.encode('utf8'))
+        classes.append(label_map[class_name])
+
+    tf_example = tf.train.Example(features=tf.train.Features(feature={
+        'image/encoded': tf.train.Feature(bytes_list=tf.train.BytesList(value=[encoded_image])),
+        'image/format': tf.train.Feature(bytes_list=tf.train.BytesList(value=[b'jpeg'])),
+        'image/object/bbox/xmin': tf.train.Feature(float_list=tf.train.FloatList(value=xmins)),
+        'image/object/bbox/xmax': tf.train.Feature(float_list=tf.train.FloatList(value=xmaxs)),
+        'image/object/bbox/ymin': tf.train.Feature(float_list=tf.train.FloatList(value=ymins)),
+        'image/object/bbox/ymax': tf.train.Feature(float_list=tf.train.FloatList(value=ymaxs)),
+        'image/object/class/text': tf.train.Feature(bytes_list=tf.train.BytesList(value=classes_text)),
+        'image/object/class/label': tf.train.Feature(int64_list=tf.train.Int64List(value=classes)),
+    }))
+
+    return tf_example
+```
+
+## Step 4: Data Augmentation
+
+Augmentation artificially increases your dataset by applying transformations:
+
+```python
+import albumentations as A
+import cv2
+
+# Define augmentation pipeline
+augmentation = A.Compose([
+    A.HorizontalFlip(p=0.5),
+    A.RandomBrightnessContrast(p=0.3),
+    A.Rotate(limit=15, p=0.3),
+    A.GaussNoise(var_limit=(10, 50), p=0.2),
+    A.Blur(blur_limit=3, p=0.1),
+    A.CLAHE(p=0.2),
+    A.RandomScale(scale_limit=0.2, p=0.3),
+    A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.3),
+], bbox_params=A.BboxParams(
+    format='pascal_voc',
+    label_fields=['class_labels'],
+    min_visibility=0.3,
+))
+
+def augment_image(image, bboxes, labels, num_augmented=5):
+    augmented_data = []
+
+    for i in range(num_augmented):
+        result = augmentation(
+            image=image,
+            bboxes=bboxes,
+            class_labels=labels,
+        )
+        augmented_data.append({
+            'image': result['image'],
+            'bboxes': result['bboxes'],
+            'labels': result['class_labels'],
+        })
+
+    return augmented_data
+```
+
+### Augmentation Impact
+
+| Original Images | Augmentation Factor | Effective Dataset |
+|----------------|--------------------:|------------------:|
+| 300 | 5x | 1,500 |
+| 500 | 5x | 2,500 |
+| 1,000 | 3x | 3,000 |
+
+## Step 5: Train/Validation Split
+
+```python
+import splitfolders
+
+# Split dataset: 80% train, 20% validation
+splitfolders.ratio(
+    input='dataset/labeled',
+    output='dataset/split',
+    seed=42,
+    ratio=(0.8, 0.2),
+    group_prefix=None,
+)
+```
+
+## Step 6: Training
+
+```python
+# On Google Colab with GPU
+# Fine-tune SSD-MobileNetV2 on your custom dataset
+
+# pipeline.config adjustments:
+# - num_classes: <your number of classes>
+# - batch_size: 16 (adjust for GPU memory)
+# - fine_tune_checkpoint: "ssd_mobilenet_v2/.../checkpoint/ckpt-0"
+# - fine_tune_checkpoint_type: "detection"
+# - train_input_reader.tf_record_input_reader.input_path: "train.tfrecord"
+# - eval_input_reader.tf_record_input_reader.input_path: "val.tfrecord"
+
+python model_main_tf2.py \
+  --model_dir=training/ \
+  --pipeline_config_path=pipeline.config \
+  --num_train_steps=40000
+```
+
+## Common Mistakes
+
+1. **Insufficient variety**: 1000 images from one angle < 200 images from many angles
+2. **Inconsistent labeling**: Misspelled class names create phantom classes
+3. **Unlabeled instances**: Missing labels teach the model to ignore objects
+4. **Too-loose bounding boxes**: The model learns to detect whitespace
+5. **Class imbalance**: If Class A has 500 images but Class B has 50, the model will be biased
+
+## Conclusion
+
+Creating a high-quality custom dataset is the single most impactful thing you can do for your object detection model. No amount of architectural sophistication or training tricks can compensate for poor data.
+
+The Custom Object Detection project proved that **300 well-labeled, diverse images can outperform 3,000 poorly labeled ones**. Invest your time in collection diversity and labeling quality — the training pipeline will take care of the rest.

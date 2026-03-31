@@ -1,0 +1,328 @@
+---
+title: "Integrating Stripe Payment Gateway in Next.js: Lessons from a Real SaaS"
+publishedAt: "2026-03-20"
+summary: "A practical guide to integrating Stripe payments in a Next.js application — covering checkout sessions, webhooks, subscription management, and the gotchas you'll only discover in production. Based on building an Instagram automation SaaS."
+tag: "SaaS Development"
+images:
+  - "/images/projects/auto-mention/auto-mention-0.png"
+---
+
+## Overview
+
+Payment integration is the beating heart of any SaaS product. Get it right, and money flows seamlessly. Get it wrong, and you lose customers, revenue, and sleep.
+
+When building the **SAAS Automation for Instagram** — an application that automates comment replies and DM responses for business accounts — we chose **Stripe** as our payment processor. Stripe's developer experience is legendary, but integrating it properly into a **Next.js** application still has plenty of non-obvious challenges.
+
+This article covers the end-to-end integration: from setting up products and prices in Stripe, to handling webhooks reliably, to managing subscription lifecycles.
+
+## Architecture Overview
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Frontend   │     │  Next.js API  │     │    Stripe    │
+│   (React)    │────▶│   Routes     │────▶│    API       │
+│              │     │              │     │              │
+│  Checkout    │     │  /api/stripe │     │  Products    │
+│  Button      │     │  /api/webhook│◀────│  Webhooks    │
+└──────────────┘     └──────┬───────┘     └──────────────┘
+                            │
+                     ┌──────┴───────┐
+                     │  PostgreSQL  │
+                     │  (Subscriptions, │
+                     │   Users)     │
+                     └──────────────┘
+```
+
+## Step 1: Setting Up Stripe Products
+
+Before writing code, define your subscription tiers in the Stripe Dashboard or via API:
+
+```typescript
+// scripts/create-stripe-products.ts
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+async function createProducts() {
+  // Create the product
+  const product = await stripe.products.create({
+    name: 'Instagram Automation Pro',
+    description: 'Unlimited automated replies, AI responses, analytics',
+  });
+
+  // Create pricing tiers
+  const monthlyPrice = await stripe.prices.create({
+    product: product.id,
+    unit_amount: 2900, // $29.00
+    currency: 'usd',
+    recurring: { interval: 'month' },
+    lookup_key: 'pro_monthly',
+  });
+
+  const yearlyPrice = await stripe.prices.create({
+    product: product.id,
+    unit_amount: 29000, // $290.00 (save ~17%)
+    currency: 'usd',
+    recurring: { interval: 'year' },
+    lookup_key: 'pro_yearly',
+  });
+
+  console.log('Products created:', { product, monthlyPrice, yearlyPrice });
+}
+```
+
+## Step 2: Creating Checkout Sessions
+
+When a user clicks "Subscribe," create a Stripe Checkout Session via an API route:
+
+```typescript
+// app/api/stripe/checkout/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { auth } from '@clerk/nextjs';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+export async function POST(req: NextRequest) {
+  const { userId } = auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { priceId } = await req.json();
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${process.env.NEXT_PUBLIC_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_URL}/pricing`,
+    metadata: { userId },
+    customer_email: await getUserEmail(userId),
+  });
+
+  return NextResponse.json({ url: session.url });
+}
+```
+
+On the frontend:
+
+```typescript
+// components/PricingCard.tsx
+'use client';
+
+export function PricingCard({ priceId, planName, price }) {
+  const handleCheckout = async () => {
+    const response = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId }),
+    });
+
+    const { url } = await response.json();
+    window.location.href = url; // Redirect to Stripe Checkout
+  };
+
+  return (
+    <div className="pricing-card">
+      <h3>{planName}</h3>
+      <p>${price}/month</p>
+      <button onClick={handleCheckout}>Subscribe Now</button>
+    </div>
+  );
+}
+```
+
+## Step 3: Webhook Handler (The Critical Part)
+
+Webhooks are how Stripe tells your application about events — payment succeeded, subscription cancelled, card declined. This is the **most important** and most commonly broken part of the integration.
+
+```typescript
+// app/api/webhook/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { headers } from 'next/headers';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+export async function POST(req: NextRequest) {
+  const body = await req.text(); // Raw body, not JSON
+  const signature = headers().get('stripe-signature')!;
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  // Handle specific events
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session;
+      await handleCheckoutComplete(session);
+      break;
+    }
+    case 'invoice.payment_succeeded': {
+      const invoice = event.data.object as Stripe.Invoice;
+      await handlePaymentSuccess(invoice);
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      await handlePaymentFailure(invoice);
+      break;
+    }
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object as Stripe.Subscription;
+      await handleSubscriptionCancelled(subscription);
+      break;
+    }
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+### Critical Webhook Gotchas
+
+**1. Raw Body Parsing**
+
+Stripe requires the **raw request body** for signature verification. If your framework parses it as JSON first, verification will fail. In Next.js App Router, use `req.text()` instead of `req.json()`.
+
+**2. Idempotency**
+
+Stripe may send the same webhook multiple times. Always check if you've already processed an event:
+
+```typescript
+async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+  // Check if already processed
+  const existing = await db.subscription.findUnique({
+    where: { stripeSessionId: session.id },
+  });
+  if (existing) return; // Already processed
+
+  await db.subscription.create({
+    data: {
+      userId: session.metadata.userId,
+      stripeSessionId: session.id,
+      stripeCustomerId: session.customer as string,
+      stripeSubscriptionId: session.subscription as string,
+      status: 'ACTIVE',
+      plan: 'PRO',
+    },
+  });
+}
+```
+
+**3. Respond Quickly**
+
+Stripe expects a 2xx response within **20 seconds**. If your webhook handler does heavy processing, respond first and process asynchronously:
+
+```typescript
+// Respond immediately, process later
+export async function POST(req: NextRequest) {
+  const event = verifyWebhook(req);
+  
+  // Queue for async processing
+  await eventQueue.push(event);
+  
+  // Return immediately
+  return NextResponse.json({ received: true });
+}
+```
+
+## Step 4: Subscription Management
+
+Users need to manage their subscriptions — upgrade, downgrade, cancel, update payment method. Stripe's **Customer Portal** handles this:
+
+```typescript
+// app/api/stripe/portal/route.ts
+export async function POST(req: NextRequest) {
+  const { userId } = auth();
+  
+  const subscription = await db.subscription.findUnique({
+    where: { userId },
+  });
+
+  const portalSession = await stripe.billingPortal.sessions.create({
+    customer: subscription.stripeCustomerId,
+    return_url: `${process.env.NEXT_PUBLIC_URL}/dashboard`,
+  });
+
+  return NextResponse.json({ url: portalSession.url });
+}
+```
+
+## Step 5: Protecting Routes by Subscription Status
+
+Gate premium features behind subscription checks:
+
+```typescript
+// middleware.ts or a utility function
+export async function requireSubscription(userId: string) {
+  const subscription = await db.subscription.findUnique({
+    where: { userId, status: 'ACTIVE' },
+  });
+
+  if (!subscription) {
+    throw new Error('Active subscription required');
+  }
+
+  return subscription;
+}
+
+// In an API route
+export async function POST(req: NextRequest) {
+  const { userId } = auth();
+  
+  // This throws if user doesn't have an active subscription
+  await requireSubscription(userId);
+
+  // Premium feature logic here
+  await automateInstagramReply(userId, req.body);
+}
+```
+
+## Testing Stripe Locally
+
+Use the Stripe CLI to forward webhooks to your local development server:
+
+```bash
+# Install Stripe CLI
+brew install stripe/stripe-cli/stripe
+
+# Login
+stripe login
+
+# Forward webhooks to local server
+stripe listen --forward-to localhost:3000/api/webhook
+
+# Trigger test events
+stripe trigger checkout.session.completed
+stripe trigger invoice.payment_succeeded
+```
+
+## Production Checklist
+
+Before going live, ensure:
+
+- ✅ Webhook signature verification is enabled
+- ✅ Idempotent event processing (handle duplicate webhooks)
+- ✅ Error handling for failed payments (notify user, retry logic)
+- ✅ Subscription status synced between Stripe and your database
+- ✅ Customer portal configured for self-service management
+- ✅ Test with Stripe's test mode before switching to live keys
+- ✅ Monitor webhook delivery in Stripe Dashboard
+
+## Conclusion
+
+Stripe integration in Next.js is straightforward on the surface but has critical details that only surface in production. The webhook handler is the backbone — get signature verification, idempotency, and quick responses right, and the rest follows naturally.
+
+The experience building payment flows for the Instagram Automation SaaS taught us that reliable payment infrastructure isn't just about accepting money — it's about handling every edge case in the subscription lifecycle gracefully.

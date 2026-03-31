@@ -1,0 +1,79 @@
+.techSection {
+  width: 100%;
+  padding-top: 40px;
+  overflow: hidden;
+  position: relative;
+}
+
+.marqueeContainer {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  /* Optional: slightly fade the left and right edges entirely so items don't just pop in */
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.marqueeTrack {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 40px;
+  padding: 16px 0;
+  will-change: transform;
+  animation: scroll 40s linear infinite;
+}
+
+.marqueeContainer:hover .marqueeTrack {
+  animation-play-state: paused;
+}
+
+.marqueeColorLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  pointer-events: none;
+  /* Reveal inner color only in the center of the screen */
+  mask-image: linear-gradient(to right, transparent 35%, black 45%, black 55%, transparent 65%);
+  -webkit-mask-image: linear-gradient(to right, transparent 35%, black 45%, black 55%, transparent 65%);
+}
+
+.techLogoWrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.techLogo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.techLogoGrayscale {
+  opacity: 0.6;
+}
+
+.techName {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--neutral-alpha-medium);
+  white-space: nowrap;
+}
+
+.techNameColor {
+  color: var(--neutral-on-background-strong);
+}
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}

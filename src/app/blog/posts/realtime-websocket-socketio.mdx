@@ -1,0 +1,326 @@
+---
+title: "WebSocket vs Polling: Building Real-Time Systems with Socket.IO"
+publishedAt: "2026-03-10"
+summary: "Compare HTTP polling, Server-Sent Events, and WebSockets for real-time communication. Learn how Socket.IO abstracts these protocols and see how it powers multi-client synchronization in a robotics basestation system."
+tag: "Real-Time Systems"
+images:
+  - "/images/projects/basestation/basestation.png"
+---
+
+## Overview
+
+Real-time communication is the backbone of modern interactive applications — from chat apps and live dashboards to multiplayer games and IoT control systems. But "real-time" isn't a single technology; it's a spectrum of approaches with different trade-offs.
+
+When building the **Scalable Basestation System** for real-time multi-robot communication, choosing the right transport protocol was critical. The system needed to synchronize telemetry data from multiple soccer robots and send commands to all units simultaneously — with latency measured in milliseconds, not seconds.
+
+This article compares the three main approaches to real-time web communication and explains why **Socket.IO** was the right choice.
+
+## The Three Approaches
+
+### 1. HTTP Polling (Short Polling)
+
+The simplest approach — the client repeatedly asks the server "anything new?" at regular intervals:
+
+```typescript
+// Client-side polling
+setInterval(async () => {
+  const response = await fetch('/api/robot-status');
+  const data = await response.json();
+  updateDashboard(data);
+}, 1000); // Poll every second
+```
+
+**Pros:**
+- Simple to implement
+- Works with any HTTP server
+- Stateless — no persistent connections
+
+**Cons:**
+- Wasteful — most requests return "nothing new"
+- Minimum latency equals poll interval
+- Server load increases linearly with clients
+- Not truly real-time
+
+### 2. Server-Sent Events (SSE)
+
+A one-way channel where the server pushes updates to the client:
+
+```typescript
+// Server (Express)
+app.get('/api/robot-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const interval = setInterval(() => {
+    const data = getRobotTelemetry();
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  }, 100);
+
+  req.on('close', () => clearInterval(interval));
+});
+```
+
+```typescript
+// Client
+const eventSource = new EventSource('/api/robot-stream');
+eventSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  updateDashboard(data);
+};
+```
+
+**Pros:**
+- Server-initiated push (no polling waste)
+- Native browser API (`EventSource`)
+- Automatic reconnection
+- Simple for one-way data flow
+
+**Cons:**
+- **One-directional** — client can't send data back through the same channel
+- Limited to text data
+- Maximum 6 connections per domain in HTTP/1.1
+- No binary data support
+
+### 3. WebSocket
+
+A full-duplex, bidirectional communication channel:
+
+```typescript
+// Server
+const wss = new WebSocket.Server({ port: 8080 });
+
+wss.on('connection', (ws) => {
+  // Receive commands from client
+  ws.on('message', (message) => {
+    const command = JSON.parse(message);
+    sendToRobot(command);
+  });
+
+  // Push updates to client
+  setInterval(() => {
+    ws.send(JSON.stringify(getRobotTelemetry()));
+  }, 100);
+});
+```
+
+```typescript
+// Client
+const ws = new WebSocket('ws://localhost:8080');
+
+ws.onmessage = (event) => {
+  updateDashboard(JSON.parse(event.data));
+};
+
+ws.send(JSON.stringify({ command: 'MOVE_FORWARD', speed: 50 }));
+```
+
+**Pros:**
+- **Bidirectional** — both sides can send data anytime
+- Low latency (no HTTP overhead per message)
+- Binary data support
+- Single persistent connection
+
+**Cons:**
+- More complex server infrastructure
+- Stateful — needs connection management
+- Proxy/firewall compatibility issues
+- No automatic reconnection (without libraries)
+
+## Comparison Table
+
+| Feature | Polling | SSE | WebSocket |
+|---------|---------|-----|-----------|
+| Direction | Client → Server | Server → Client | Bidirectional |
+| Latency | Poll interval | Near real-time | Real-time |
+| Overhead | High (repeated HTTP) | Low | Very low |
+| Binary data | No (JSON only) | No (text only) | Yes |
+| Auto-reconnect | N/A | Built-in | Manual |
+| Scalability | Poor | Good | Good |
+| Browser support | Universal | Good | Universal |
+| Use case | Simple status checks | Notifications, feeds | Interactive apps |
+
+## Why Socket.IO?
+
+Socket.IO is a library built **on top of** WebSocket that adds critical features for production systems:
+
+1. **Automatic fallback**: If WebSocket isn't available, it falls back to HTTP long-polling
+2. **Reconnection**: Automatic reconnection with exponential backoff
+3. **Rooms & namespaces**: Logical grouping of connections
+4. **Broadcasting**: Send to all or specific groups
+5. **Acknowledgments**: Confirm message delivery
+6. **Binary support**: Efficient binary data transfer
+
+### Socket.IO in the Basestation System
+
+In our robot soccer basestation, Socket.IO manages three types of real-time communication:
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Robot 1    │     │   Robot 2    │     │   Robot 3    │
+│  (Client)    │     │  (Client)    │     │  (Client)    │
+└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
+       │                    │                    │
+       └────────────────────┼────────────────────┘
+                            │
+                     ┌──────┴───────┐
+                     │  Basestation │
+                     │   Server     │
+                     │  (Socket.IO) │
+                     └──────┬───────┘
+                            │
+                     ┌──────┴───────┐
+                     │  Dashboard   │
+                     │  (React)     │
+                     └──────────────┘
+```
+
+### Implementation: Server
+
+```typescript
+// server.ts
+import { Server } from 'socket.io';
+import express from 'express';
+import { createServer } from 'http';
+
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: 'http://localhost:3000' },
+});
+
+// Namespace for robot connections
+const robotNamespace = io.of('/robots');
+
+// Namespace for dashboard connections
+const dashboardNamespace = io.of('/dashboard');
+
+robotNamespace.on('connection', (socket) => {
+  const robotId = socket.handshake.query.robotId as string;
+  console.log(`Robot ${robotId} connected`);
+
+  // Join a room for this specific robot
+  socket.join(`robot-${robotId}`);
+
+  // Receive telemetry from robot
+  socket.on('telemetry', (data) => {
+    // Forward to all dashboard clients
+    dashboardNamespace.emit('robot-telemetry', {
+      robotId,
+      ...data,
+      timestamp: Date.now(),
+    });
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log(`Robot ${robotId} disconnected`);
+    dashboardNamespace.emit('robot-disconnected', { robotId });
+  });
+});
+
+dashboardNamespace.on('connection', (socket) => {
+  console.log('Dashboard client connected');
+
+  // Receive commands from dashboard
+  socket.on('send-command', ({ robotId, command }) => {
+    // Forward command to specific robot
+    robotNamespace.to(`robot-${robotId}`).emit('command', command);
+  });
+
+  // Broadcast command to all robots
+  socket.on('broadcast-command', (command) => {
+    robotNamespace.emit('command', command);
+  });
+});
+
+httpServer.listen(4000, () => {
+  console.log('Basestation server running on port 4000');
+});
+```
+
+### Implementation: React Dashboard
+
+```typescript
+// components/RobotDashboard.tsx
+'use client';
+import { useEffect, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+
+interface RobotTelemetry {
+  robotId: string;
+  speed: number;
+  direction: number;
+  voltage: number;
+  sensorStatus: Record<string, boolean>;
+  timestamp: number;
+}
+
+export function RobotDashboard() {
+  const [robots, setRobots] = useState<Map<string, RobotTelemetry>>(new Map());
+  const [socket, setSocket] = useState<Socket | null>(null);
+
+  useEffect(() => {
+    const newSocket = io('http://localhost:4000/dashboard');
+
+    newSocket.on('robot-telemetry', (data: RobotTelemetry) => {
+      setRobots(prev => {
+        const next = new Map(prev);
+        next.set(data.robotId, data);
+        return next;
+      });
+    });
+
+    newSocket.on('robot-disconnected', ({ robotId }) => {
+      setRobots(prev => {
+        const next = new Map(prev);
+        next.delete(robotId);
+        return next;
+      });
+    });
+
+    setSocket(newSocket);
+    return () => { newSocket.close(); };
+  }, []);
+
+  const sendCommand = (robotId: string, command: object) => {
+    socket?.emit('send-command', { robotId, command });
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {Array.from(robots.entries()).map(([id, telemetry]) => (
+        <RobotCard
+          key={id}
+          telemetry={telemetry}
+          onCommand={(cmd) => sendCommand(id, cmd)}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+## Scaling Socket.IO
+
+For production deployment with multiple server instances, Socket.IO requires an **adapter** to share state:
+
+```typescript
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
+
+const pubClient = createClient({ url: process.env.REDIS_URL });
+const subClient = pubClient.duplicate();
+
+await Promise.all([pubClient.connect(), subClient.connect()]);
+
+io.adapter(createAdapter(pubClient, subClient));
+```
+
+This ensures that a message emitted from one server instance reaches clients connected to any other instance.
+
+## Conclusion
+
+For the basestation system, WebSocket via Socket.IO was the clear choice — bidirectional communication, low latency, and rooms/namespaces for organizing robot and dashboard connections. Polling would have added unacceptable latency, and SSE couldn't handle the bidirectional command flow.
+
+The key takeaway: **choose the simplest technology that meets your requirements**. Polling for status pages, SSE for notification feeds, WebSocket for interactive real-time applications.

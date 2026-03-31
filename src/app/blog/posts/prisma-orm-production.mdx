@@ -1,0 +1,371 @@
+---
+title: "Prisma ORM in Production: Tips, Tricks, and Best Practices"
+publishedAt: "2026-03-05"
+summary: "Everything you need to know about using Prisma ORM in a production application — from schema design and migrations to performance optimization, relations, and common pitfalls. Lessons from building a real-time digital scoring system."
+tag: "Database & ORM"
+images:
+  - "/images/projects/app-silat/admin.png"
+---
+
+## Overview
+
+**Prisma** has become one of the most popular ORMs in the TypeScript ecosystem, and for good reason — it provides type-safe database access, declarative schema management, and an intuitive query API. But moving from tutorial projects to production systems reveals nuances that documentation doesn't always cover.
+
+Building the **Real-Time Digital Scoring System for Pencak Silat**, Prisma was our data layer — managing complex relationships between matches, athletes, judges, scores, and penalties. This article shares the practical knowledge gained from using Prisma under real production constraints.
+
+## Schema Design
+
+A well-designed Prisma schema is the foundation of your application. Here's a simplified version of the scoring system's schema:
+
+```prisma
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Match {
+  id          String       @id @default(uuid())
+  matchNumber Int          @unique
+  category    String       // Weight class
+  round       Int          @default(1)
+  status      MatchStatus  @default(PENDING)
+  
+  redAthlete    Athlete  @relation("RedCorner", fields: [redAthleteId], references: [id])
+  redAthleteId  String
+  blueAthlete   Athlete  @relation("BlueCorner", fields: [blueAthleteId], references: [id])
+  blueAthleteId String
+  
+  scores      Score[]
+  penalties   Penalty[]
+  timeEntries TimeEntry[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([category])
+}
+
+model Athlete {
+  id          String   @id @default(uuid())
+  name        String
+  weight      Float
+  team        String
+  
+  redMatches  Match[]  @relation("RedCorner")
+  blueMatches Match[]  @relation("BlueCorner")
+  
+  @@index([team])
+}
+
+model Score {
+  id        String    @id @default(uuid())
+  matchId   String
+  match     Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  judgeId   String
+  judge     Judge     @relation(fields: [judgeId], references: [id])
+  corner    Corner    // RED or BLUE
+  technique String    // Punch, kick, takedown, etc.
+  points    Int
+  round     Int
+  
+  createdAt DateTime  @default(now())
+
+  @@index([matchId, round])
+  @@index([judgeId])
+}
+
+enum MatchStatus {
+  PENDING
+  IN_PROGRESS
+  ROUND_BREAK
+  COMPLETED
+  CANCELLED
+}
+
+enum Corner {
+  RED
+  BLUE
+}
+```
+
+### Schema Design Tips
+
+**1. Use `@@index` for frequent queries**
+
+Every field you filter or sort by in production should have an index:
+
+```prisma
+model Score {
+  // ...
+  @@index([matchId, round])    // Composite index for "scores in round X of match Y"
+  @@index([judgeId])           // Filter scores by judge
+  @@index([createdAt])         // Sort by time
+}
+```
+
+**2. Use `onDelete: Cascade` carefully**
+
+When a match is deleted, all related scores should be deleted too. But be explicit:
+
+```prisma
+model Score {
+  match   Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+
+model Penalty {
+  match   Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+```
+
+**3. Enums over strings**
+
+Use Prisma enums for fields with a fixed set of values. This gives you compile-time safety and database-level constraints:
+
+```prisma
+// Bad — any string is valid
+model Match {
+  status String @default("pending")
+}
+
+// Good — only valid values accepted
+model Match {
+  status MatchStatus @default(PENDING)
+}
+```
+
+## Migrations
+
+### Development Workflow
+
+```bash
+# After modifying schema.prisma:
+npx prisma migrate dev --name add_penalty_table
+
+# This creates a migration file, applies it, and regenerates the client
+```
+
+### Production Deployment
+
+```bash
+# In your CI/CD pipeline:
+npx prisma migrate deploy
+
+# This applies pending migrations without generating new ones
+```
+
+### Migration Best Practice: Never Edit Existing Migrations
+
+Once a migration has been applied to any environment (staging, production), treat it as immutable. Create new migrations to modify the schema:
+
+```bash
+# Wrong: editing 20240101_init/migration.sql
+# Right: creating a new migration
+npx prisma migrate dev --name add_index_to_scores
+```
+
+## Querying Patterns
+
+### Efficient Relations Loading
+
+Prisma uses **lazy loading by default** — relations aren't loaded unless you ask for them:
+
+```typescript
+// Bad: N+1 query problem
+const matches = await prisma.match.findMany();
+for (const match of matches) {
+  const scores = await prisma.score.findMany({
+    where: { matchId: match.id },
+  }); // This runs N separate queries!
+}
+
+// Good: Eager loading with include
+const matches = await prisma.match.findMany({
+  include: {
+    scores: true,
+    penalties: true,
+    redAthlete: true,
+    blueAthlete: true,
+  },
+});
+```
+
+### Select Only What You Need
+
+Don't fetch entire records when you only need a few fields:
+
+```typescript
+// Bad: fetches all 15 columns
+const matches = await prisma.match.findMany();
+
+// Good: fetches only what the list view needs
+const matches = await prisma.match.findMany({
+  select: {
+    id: true,
+    matchNumber: true,
+    status: true,
+    category: true,
+    redAthlete: { select: { name: true, team: true } },
+    blueAthlete: { select: { name: true, team: true } },
+  },
+});
+```
+
+### Transactions
+
+For operations that must be atomic — like recording a score and updating the match status:
+
+```typescript
+const result = await prisma.$transaction(async (tx) => {
+  // Record the score
+  const score = await tx.score.create({
+    data: {
+      matchId,
+      judgeId,
+      corner: 'RED',
+      technique: 'KICK',
+      points: 2,
+      round: currentRound,
+    },
+  });
+
+  // Update match timestamp
+  await tx.match.update({
+    where: { id: matchId },
+    data: { updatedAt: new Date() },
+  });
+
+  // Check if all judges have scored
+  const judgeCount = await tx.score.count({
+    where: { matchId, round: currentRound },
+  });
+
+  if (judgeCount >= REQUIRED_JUDGES) {
+    await tx.match.update({
+      where: { id: matchId },
+      data: { status: 'ROUND_BREAK' },
+    });
+  }
+
+  return score;
+});
+```
+
+## Performance Optimization
+
+### 1. Connection Pooling
+
+In serverless environments (Vercel, AWS Lambda), every function invocation can create a new database connection. Use Prisma Accelerate or PgBouncer:
+
+```typescript
+// lib/prisma.ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+
+export const prisma = globalForPrisma.prisma || new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['error'],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+```
+
+### 2. Query Logging in Development
+
+Enable query logging to catch slow queries early:
+
+```typescript
+const prisma = new PrismaClient({
+  log: [
+    { emit: 'event', level: 'query' },
+  ],
+});
+
+prisma.$on('query', (e) => {
+  if (e.duration > 100) { // Log queries slower than 100ms
+    console.warn(`Slow query (${e.duration}ms): ${e.query}`);
+  }
+});
+```
+
+### 3. Pagination
+
+Never fetch all records. Always paginate:
+
+```typescript
+// Cursor-based pagination (recommended for real-time data)
+const scores = await prisma.score.findMany({
+  take: 20,
+  skip: 1, // Skip the cursor
+  cursor: { id: lastScoreId },
+  where: { matchId },
+  orderBy: { createdAt: 'desc' },
+});
+
+// Offset-based pagination (simpler, but slower for large datasets)
+const scores = await prisma.score.findMany({
+  take: 20,
+  skip: page * 20,
+  where: { matchId },
+  orderBy: { createdAt: 'desc' },
+});
+```
+
+## Common Pitfalls
+
+### 1. Forgetting to Regenerate the Client
+
+After any schema change, you must regenerate the Prisma Client:
+
+```bash
+npx prisma generate
+```
+
+Without this, your TypeScript types won't match the database schema, leading to runtime errors.
+
+### 2. DateTime Timezone Issues
+
+Prisma stores timestamps in UTC. Always use UTC on the server and convert to local time on the client:
+
+```typescript
+// Server: always UTC
+const match = await prisma.match.create({
+  data: {
+    // ...
+    createdAt: new Date(), // UTC automatically
+  },
+});
+
+// Client: convert to local
+const localTime = new Date(match.createdAt).toLocaleString();
+```
+
+### 3. Large Batch Operations
+
+For bulk inserts, use `createMany` instead of looping:
+
+```typescript
+// Bad: 100 separate INSERT statements
+for (const score of scores) {
+  await prisma.score.create({ data: score });
+}
+
+// Good: Single bulk INSERT
+await prisma.score.createMany({
+  data: scores,
+  skipDuplicates: true,
+});
+```
+
+## Conclusion
+
+Prisma ORM transforms database interactions from error-prone SQL strings into type-safe, auto-completed TypeScript code. The key to using it well in production is understanding its query patterns, indexing strategies, and connection management.
+
+From building the Pencak Silat scoring system, the biggest lesson was that **ORM performance problems are almost always schema problems**. Design your indexes, relations, and queries together — not as separate concerns.

@@ -49,6 +49,11 @@ export default function About() {
       display: about.technical.display,
       items: about.technical.skills.map((skill) => skill.title),
     },
+    {
+      title: about.otherSkill.title,
+      display: about.otherSkill.display,
+      items: about.otherSkill.skills.map((skill) => skill.title),
+    },
   ];
   return (
     <Column maxWidth="m">
@@ -72,12 +77,12 @@ export default function About() {
           position="fixed"
           paddingLeft="24"
           gap="32"
-          hide="s"
+          s={{ hide: true }}
         >
           <TableOfContents structure={structure} about={about} />
         </Column>
       )}
-      <Flex fillWidth mobileDirection="column" horizontal="center">
+      <Flex fillWidth s={{ direction: "column" }} horizontal="center">
         {about.avatar.display && (
           <Column
             className={styles.avatar}
@@ -193,7 +198,7 @@ export default function About() {
               <Column fillWidth gap="l" marginBottom="40">
                 {about.work.experiences.map((experience, index) => (
                   <Column key={`${experience.company}-${experience.role}-${index}`} fillWidth>
-                    <Flex fillWidth horizontal="space-between" vertical="end" marginBottom="4">
+                    <Flex fillWidth horizontal="between" vertical="end" marginBottom="4">
                       <Text id={experience.company} variant="heading-strong-l">
                         {experience.company}
                       </Text>
@@ -205,7 +210,7 @@ export default function About() {
                       {experience.role}
                     </Text>
                     <Column as="ul" gap="16">
-                      {experience.achievements.map((achievement: JSX.Element, index: number) => (
+                      {experience.achievements.map((achievement: React.ReactNode, index: number) => (
                         <Text
                           as="li"
                           variant="body-default-m"
@@ -277,7 +282,7 @@ export default function About() {
               >
                 {about.technical.title}
               </Heading>
-              <Column fillWidth gap="l">
+              <Column fillWidth gap="l" marginBottom="40">
                 {about.technical.skills.map((skill, index) => (
                   <Column key={`${skill}-${index}`} fillWidth gap="4">
                     <Text variant="heading-strong-l">{skill.title}</Text>
@@ -315,6 +320,56 @@ export default function About() {
               </Column>
             </>
           )}
+          
+          {about.otherSkill?.display && (
+            <>
+              <Heading
+                as="h2"
+                id={about.otherSkill.title}
+                variant="display-strong-s"
+                marginBottom="40"
+              >
+                {about.otherSkill.title}
+              </Heading>
+              <Column fillWidth gap="l" marginBottom="40">
+                {about.otherSkill.skills.map((skill, index) => (
+                  <Column key={`${skill}-${index}`} fillWidth gap="4">
+                    <Text variant="heading-strong-l">{skill.title}</Text>
+                    <Text variant="body-default-m" onBackground="neutral-weak">
+                      {skill.description}
+                    </Text>
+                    {skill.images && skill.images.length > 0 && (
+                      <Flex fillWidth paddingTop="m" gap="12" wrap>
+                        {skill.images.map((image, index) => (
+                          <Flex
+                            key={index}
+                            border="neutral-medium"
+                            radius="m"
+                            //@ts-ignore
+                            minWidth={image.width}
+                            //@ts-ignore
+                            height={image.height}
+                          >
+                            <Media
+                              enlarge
+                              radius="m"
+                              //@ts-ignore
+                              sizes={image.width.toString()}
+                              //@ts-ignore
+                              alt={image.alt}
+                              //@ts-ignore
+                              src={image.src}
+                            />
+                          </Flex>
+                        ))}
+                      </Flex>
+                    )}
+                  </Column>
+                ))}
+              </Column>
+            </>
+          )}
+
         </Column>
       </Flex>
     </Column>

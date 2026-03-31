@@ -1,0 +1,298 @@
+---
+title: "Real-Time AI Streaming with Vercel AI SDK and OpenAI: A Deep Dive"
+publishedAt: "2026-03-15"
+summary: "Master the art of streaming AI responses in real-time using the Vercel AI SDK. Learn token management, structured output with Zod schemas, and how to build responsive AI interfaces that feel alive — not loading."
+tag: "AI & Web Development"
+images:
+  - "/images/work/youtube-transcript1.png"
+---
+
+## Overview
+
+The difference between a good AI application and a great one is **streaming**. When a user asks a question and waits 10 seconds for a complete response, the experience feels broken. When tokens appear word-by-word in real-time, it feels magical — like the AI is thinking alongside you.
+
+Building the **AI-Powered YouTube Transcript Summarizer**, we needed to process hours of transcript text through OpenAI and present the results as they generated. The **Vercel AI SDK** made this possible with elegant abstractions over streaming, token management, and structured output.
+
+This article dives deep into the technical implementation.
+
+## The Vercel AI SDK Architecture
+
+The Vercel AI SDK provides three core packages:
+
+- **`ai`**: Core streaming utilities and React hooks
+- **`@ai-sdk/openai`**: OpenAI provider adapter
+- **`@ai-sdk/anthropic`**: Anthropic provider (swappable)
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Frontend   │     │   API Route  │     │   OpenAI     │
+│              │     │              │     │              │
+│  useChat()   │◀───▶│  streamText()│◀───▶│  GPT-4       │
+│  useCompletion│     │  generateText│     │  Streaming   │
+│              │     │              │     │              │
+│  Token-by-   │     │  Transforms  │     │  Token       │
+│  token UI    │     │  & Pipes     │     │  Generation  │
+└──────────────┘     └──────────────┘     └──────────────┘
+```
+
+## Basic Streaming Implementation
+
+### API Route (Server)
+
+```typescript
+// app/api/summary/route.ts
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+export async function POST(req: Request) {
+  const { transcript, videoTitle } = await req.json();
+
+  const result = streamText({
+    model: openai('gpt-4o'),
+    system: `You are an expert content analyst. Given a YouTube video transcript, 
+             provide a comprehensive summary with key takeaways, important timestamps, 
+             and actionable insights.`,
+    prompt: `Video Title: ${videoTitle}\n\nTranscript:\n${transcript}`,
+    maxTokens: 2000,
+    temperature: 0.7,
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+### Frontend (Client)
+
+```typescript
+// components/TranscriptSummary.tsx
+'use client';
+import { useCompletion } from 'ai/react';
+
+export function TranscriptSummary({ transcript, videoTitle }) {
+  const { completion, isLoading, complete } = useCompletion({
+    api: '/api/summary',
+  });
+
+  const handleSummarize = async () => {
+    await complete('', {
+      body: { transcript, videoTitle },
+    });
+  };
+
+  return (
+    <div>
+      <button onClick={handleSummarize} disabled={isLoading}>
+        {isLoading ? 'Generating...' : 'Summarize Transcript'}
+      </button>
+      
+      {/* Text appears token-by-token as it streams */}
+      <div className="prose">
+        {completion || 'Click to generate a summary...'}
+      </div>
+    </div>
+  );
+}
+```
+
+That's it — with just these two pieces, you have real-time streaming AI output. The `useCompletion` hook manages the streaming connection, buffering, and state automatically.
+
+## Structured Output with Zod
+
+Raw text streaming is powerful, but sometimes you need **structured data** — JSON objects with specific fields. The Vercel AI SDK supports this through Zod schemas:
+
+```typescript
+// app/api/review/route.ts
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+const ReviewSchema = z.object({
+  overallScore: z.number().min(1).max(10).describe('Overall content quality score'),
+  summary: z.string().describe('2-3 sentence summary of the video'),
+  keyTakeaways: z.array(z.string()).describe('Main learning points'),
+  targetAudience: z.string().describe('Who would benefit from this video'),
+  pros: z.array(z.string()).describe('Strengths of the content'),
+  cons: z.array(z.string()).describe('Weaknesses or missing elements'),
+  recommendation: z.enum(['HIGHLY_RECOMMENDED', 'RECOMMENDED', 'NEUTRAL', 'NOT_RECOMMENDED']),
+});
+
+export async function POST(req: Request) {
+  const { transcript, videoTitle } = await req.json();
+
+  const { object } = await generateObject({
+    model: openai('gpt-4o'),
+    schema: ReviewSchema,
+    prompt: `Analyze and review this YouTube video based on its transcript.
+             
+             Title: ${videoTitle}
+             Transcript: ${transcript}`,
+  });
+
+  // 'object' is fully typed as z.infer<typeof ReviewSchema>
+  return Response.json(object);
+}
+```
+
+The AI is **forced** to respond in the exact shape defined by the Zod schema. No parsing errors, no malformed JSON — the SDK handles validation internally.
+
+## Token Management
+
+OpenAI models have context window limits. When processing hour-long YouTube transcripts (potentially 50,000+ words), you can't just dump everything into a single prompt.
+
+### Strategy 1: Chunked Summarization
+
+Split the transcript into chunks, summarize each, then summarize the summaries:
+
+```typescript
+function chunkTranscript(transcript: string, maxChunkLength: number = 8000): string[] {
+  const words = transcript.split(' ');
+  const chunks: string[] = [];
+  let currentChunk: string[] = [];
+
+  for (const word of words) {
+    currentChunk.push(word);
+    if (currentChunk.join(' ').length >= maxChunkLength) {
+      chunks.push(currentChunk.join(' '));
+      currentChunk = [];
+    }
+  }
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.join(' '));
+  }
+
+  return chunks;
+}
+
+async function summarizeLongTranscript(transcript: string) {
+  const chunks = chunkTranscript(transcript);
+  
+  // Phase 1: Summarize each chunk
+  const chunkSummaries = await Promise.all(
+    chunks.map((chunk, i) =>
+      generateText({
+        model: openai('gpt-4o-mini'), // Cheaper model for initial pass
+        prompt: `Summarize this section (part ${i + 1}/${chunks.length}): ${chunk}`,
+        maxTokens: 500,
+      }).then(r => r.text)
+    )
+  );
+
+  // Phase 2: Final summary from chunk summaries
+  const result = streamText({
+    model: openai('gpt-4o'), // Premium model for final output
+    prompt: `Create a comprehensive summary from these section summaries:\n\n${chunkSummaries.join('\n\n---\n\n')}`,
+    maxTokens: 2000,
+  });
+
+  return result;
+}
+```
+
+### Strategy 2: Smart Truncation
+
+For simpler use cases, intelligently truncate while preserving key information:
+
+```typescript
+function smartTruncate(transcript: string, maxTokens: number = 12000): string {
+  // Rough estimate: 1 token ≈ 4 characters
+  const maxChars = maxTokens * 4;
+  
+  if (transcript.length <= maxChars) return transcript;
+
+  // Keep the beginning (context/intro) and end (conclusions)
+  const headLength = Math.floor(maxChars * 0.4);
+  const tailLength = Math.floor(maxChars * 0.4);
+  const middleNote = '\n\n[... middle section truncated for length ...]\n\n';
+
+  return (
+    transcript.slice(0, headLength) +
+    middleNote +
+    transcript.slice(-tailLength)
+  );
+}
+```
+
+## Error Handling and Resilience
+
+AI APIs are inherently unreliable — rate limits, timeouts, and model overloads are common. Build resilience into your streaming pipeline:
+
+```typescript
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+export async function POST(req: Request) {
+  const { transcript } = await req.json();
+
+  try {
+    const result = streamText({
+      model: openai('gpt-4o'),
+      prompt: transcript,
+      maxTokens: 2000,
+      maxRetries: 3,          // Auto-retry on transient failures
+      abortSignal: req.signal, // Cancel if client disconnects
+    });
+
+    return result.toDataStreamResponse();
+  } catch (error) {
+    if (error.code === 'rate_limit_exceeded') {
+      return Response.json(
+        { error: 'AI service is busy. Please try again in a moment.' },
+        { status: 429 }
+      );
+    }
+
+    return Response.json(
+      { error: 'Failed to generate summary. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## Frontend UX Patterns
+
+### Streaming Text with Animations
+
+Combine streaming with Framer Motion for a polished text-reveal effect:
+
+```typescript
+'use client';
+import { useCompletion } from 'ai/react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+export function AnimatedSummary() {
+  const { completion, isLoading, complete } = useCompletion({
+    api: '/api/summary',
+  });
+
+  return (
+    <AnimatePresence>
+      {completion && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="prose prose-lg"
+        >
+          {completion.split('\n').map((paragraph, i) => (
+            <motion.p
+              key={i}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              {paragraph}
+            </motion.p>
+          ))}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+```
+
+## Conclusion
+
+The Vercel AI SDK transforms the complexity of streaming AI responses into a few elegant abstractions. Combined with Zod for structured output and smart token management strategies, you can build AI-powered features that feel responsive, reliable, and premium.
+
+The key insight from building the YouTube Transcript Summarizer is that **perceived performance matters more than actual performance**. A 10-second streaming response feels faster than a 5-second blocking response, because the user sees progress immediately.

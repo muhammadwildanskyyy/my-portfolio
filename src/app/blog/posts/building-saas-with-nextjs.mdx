@@ -1,0 +1,306 @@
+---
+title: "Building a SaaS from Scratch with Next.js, Clerk Auth, and PostgreSQL"
+publishedAt: "2026-03-18"
+summary: "The complete blueprint for building a production-ready SaaS application — from authentication with Clerk, database design with PostgreSQL, to API architecture and deployment. Lessons learned from shipping a real Instagram automation product."
+tag: "Full-Stack Development"
+images:
+  - "/images/projects/auto-mention/auto-mention-0.png"
+---
+
+## Overview
+
+Building a SaaS (Software as a Service) from scratch is one of the most comprehensive tests of a full-stack developer's skills. You need authentication, database design, API architecture, payment processing, and deployment — all working together seamlessly.
+
+This article distills the architectural decisions and technical patterns used to build the **Instagram Automation SaaS** — a platform that automatically replies to Instagram comments and DMs based on keywords or AI-generated responses. It covers the complete technology stack: **Next.js** for the full-stack framework, **Clerk** for authentication, **PostgreSQL** for data persistence, **Express** for backend services, and **Stripe** for payments.
+
+## The Technology Stack Decision
+
+### Why Next.js?
+
+Next.js provides the rare combination of:
+- **Server-Side Rendering (SSR)**: Critical for SEO on landing and pricing pages
+- **API Routes**: Backend logic without a separate server
+- **App Router**: Modern React patterns with Server Components
+- **Edge Runtime**: Deploy API routes closer to users globally
+- **Vercel Deployment**: Zero-config production deployments
+
+### Why Clerk for Auth?
+
+Authentication is complex. Clerk handles:
+- Email/password, social logins (Google, GitHub)
+- Multi-factor authentication (MFA)
+- Session management with JWT
+- User management dashboard
+- Webhook notifications for user events
+
+```typescript
+// middleware.ts — Protect routes with Clerk
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/pricing',
+  '/api/webhook(.*)',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+]);
+
+export default clerkMiddleware((auth, req) => {
+  if (!isPublicRoute(req)) {
+    auth().protect(); // Redirect to sign-in if not authenticated
+  }
+});
+```
+
+### Why PostgreSQL?
+
+For a SaaS with structured data (users, subscriptions, automations, logs), PostgreSQL provides:
+- ACID transactions for financial data
+- Complex queries with JOINs
+- JSON columns for flexible config storage
+- Battle-tested reliability at scale
+
+## Database Schema Design
+
+A SaaS database revolves around three core concepts: **users**, **subscriptions**, and **the domain model**.
+
+```sql
+-- Users (synced from Clerk via webhooks)
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clerk_id VARCHAR(255) UNIQUE NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  name VARCHAR(255),
+  instagram_account_id VARCHAR(255),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Subscriptions (synced from Stripe via webhooks)
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  stripe_customer_id VARCHAR(255),
+  stripe_subscription_id VARCHAR(255) UNIQUE,
+  plan VARCHAR(50) DEFAULT 'FREE',
+  status VARCHAR(50) DEFAULT 'ACTIVE',
+  current_period_end TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Domain: Automation rules
+CREATE TABLE automations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  name VARCHAR(255) NOT NULL,
+  trigger_type VARCHAR(50), -- 'COMMENT' | 'DM'
+  keywords TEXT[], -- PostgreSQL array of trigger keywords
+  response_template TEXT,
+  use_ai BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Logs for tracking automation executions
+CREATE TABLE automation_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  automation_id UUID REFERENCES automations(id),
+  trigger_content TEXT,
+  response_sent TEXT,
+  instagram_user VARCHAR(255),
+  executed_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+## API Architecture
+
+### Layered Structure
+
+Organize API routes by domain with clear separation:
+
+```
+src/app/api/
+├── auth/
+│   └── webhook/route.ts     # Clerk user events
+├── stripe/
+│   ├── checkout/route.ts     # Create checkout sessions
+│   ├── portal/route.ts       # Customer portal
+│   └── webhook/route.ts      # Stripe payment events
+├── automations/
+│   ├── route.ts              # CRUD automations
+│   └── [id]/route.ts         # Single automation
+├── analytics/
+│   └── route.ts              # Usage statistics
+└── instagram/
+    ├── connect/route.ts      # OAuth connection
+    └── webhook/route.ts      # Instagram event processing
+```
+
+### API Route Pattern
+
+Every API route follows the same pattern — authenticate, validate, execute, respond:
+
+```typescript
+// app/api/automations/route.ts
+import { auth } from '@clerk/nextjs';
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+
+// GET /api/automations — List user's automations
+export async function GET() {
+  const { userId } = auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const automations = await db.automation.findMany({
+    where: { user: { clerkId: userId } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return NextResponse.json(automations);
+}
+
+// POST /api/automations — Create new automation
+export async function POST(req: NextRequest) {
+  const { userId } = auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Check subscription limits
+  const user = await db.user.findUnique({
+    where: { clerkId: userId },
+    include: { subscription: true, automations: true },
+  });
+
+  const limit = user.subscription?.plan === 'PRO' ? 50 : 3;
+  if (user.automations.length >= limit) {
+    return NextResponse.json(
+      { error: `Automation limit reached (${limit}). Upgrade to create more.` },
+      { status: 403 }
+    );
+  }
+
+  const body = await req.json();
+  const automation = await db.automation.create({
+    data: {
+      userId: user.id,
+      name: body.name,
+      triggerType: body.triggerType,
+      keywords: body.keywords,
+      responseTemplate: body.responseTemplate,
+      useAi: body.useAi || false,
+    },
+  });
+
+  return NextResponse.json(automation, { status: 201 });
+}
+```
+
+## Syncing External Services
+
+### Clerk → Database Sync
+
+When a user signs up through Clerk, a webhook syncs their data to PostgreSQL:
+
+```typescript
+// app/api/auth/webhook/route.ts
+import { WebhookEvent } from '@clerk/nextjs/server';
+
+export async function POST(req: NextRequest) {
+  const event = await verifyClerkWebhook(req);
+
+  switch (event.type) {
+    case 'user.created': {
+      await db.user.create({
+        data: {
+          clerkId: event.data.id,
+          email: event.data.email_addresses[0].email_address,
+          name: `${event.data.first_name} ${event.data.last_name}`,
+        },
+      });
+      break;
+    }
+    case 'user.deleted': {
+      await db.user.delete({ where: { clerkId: event.data.id } });
+      break;
+    }
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+## Feature Gating by Subscription Tier
+
+SaaS products need to restrict features based on the user's plan:
+
+```typescript
+// lib/subscription.ts
+export const PLAN_LIMITS = {
+  FREE: {
+    maxAutomations: 3,
+    maxResponsesPerDay: 50,
+    aiResponses: false,
+    analytics: false,
+  },
+  PRO: {
+    maxAutomations: 50,
+    maxResponsesPerDay: Infinity,
+    aiResponses: true,
+    analytics: true,
+  },
+} as const;
+
+export async function checkFeatureAccess(
+  userId: string,
+  feature: keyof typeof PLAN_LIMITS.PRO
+): Promise<boolean> {
+  const subscription = await getActiveSubscription(userId);
+  const plan = subscription?.plan || 'FREE';
+  return !!PLAN_LIMITS[plan][feature];
+}
+```
+
+## Deployment Architecture
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   Vercel     │    │   Clerk      │    │   Stripe     │
+│  (Next.js)   │◀──▶│  (Auth)      │    │  (Payments)  │
+│              │    │              │    │              │
+│  Frontend +  │    │  User mgmt   │    │  Billing     │
+│  API Routes  │    │  Sessions    │    │  Webhooks    │
+└──────┬───────┘    └──────────────┘    └──────────────┘
+       │
+┌──────┴───────┐
+│  PostgreSQL  │
+│  (Supabase/  │
+│   Neon)      │
+└──────────────┘
+```
+
+### Environment Variables
+
+```bash
+# .env.local
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
+CLERK_SECRET_KEY=sk_live_...
+CLERK_WEBHOOK_SECRET=whsec_...
+
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+
+DATABASE_URL=postgresql://user:pass@host:5432/db
+
+NEXT_PUBLIC_URL=https://yourdomain.com
+```
+
+## Lessons Learned
+
+1. **Start with auth**: Get Clerk working first. Everything depends on knowing who the user is.
+2. **Webhooks are the backbone**: Both Clerk and Stripe communicate via webhooks. Build robust, idempotent handlers from day one.
+3. **Database sync matters**: Your database is the source of truth, not Clerk or Stripe. Sync aggressively and handle edge cases.
+4. **Feature gating early**: Design your data model with subscription tiers in mind from the start.
+5. **Ship MVP fast**: Don't build billing before you have users. Start with a free tier and add payments when there's demand.
+
+## Conclusion
+
+Building a SaaS with Next.js, Clerk, and PostgreSQL provides a powerful, modern stack that handles the full product lifecycle. The key insight is that a SaaS is fundamentally a **state synchronization problem** — keeping user state, subscription state, and domain state consistent across multiple external services. Get the webhook handlers and database sync right, and the rest falls into place.

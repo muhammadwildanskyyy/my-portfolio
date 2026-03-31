@@ -1,0 +1,290 @@
+---
+title: "Deploying Machine Learning Models to Edge Devices with TensorFlow Lite"
+publishedAt: "2026-02-28"
+summary: "The complete pipeline from training a model in the cloud to running inference on a Raspberry Pi. Covers model optimization, quantization, TFLite conversion, and real-time object detection on resource-constrained hardware."
+tag: "Machine Learning"
+images:
+  - "/images/projects/custom-object-detection/custom-object-detection.png"
+---
+
+## Overview
+
+Training a machine learning model in Google Colab with a powerful GPU is the easy part. Making that model run at 30 FPS on a $35 Raspberry Pi with no GPU is where the real engineering begins.
+
+**TensorFlow Lite (TFLite)** bridges this gap — it's a lightweight runtime designed for mobile and edge devices. In the **Custom Object Detection** project, we trained an SSD-MobileNetV2 model on Google Colab and deployed it to a Raspberry Pi for real-time inference using a camera feed.
+
+This article covers the complete deployment pipeline: from a trained TensorFlow model to a production-ready edge application.
+
+## The Edge Deployment Pipeline
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│ Google Colab │     │   TFLite     │     │ Raspberry Pi │
+│              │     │  Conversion  │     │              │
+│ Train Model  │────▶│  + Optimize  │────▶│ Real-Time    │
+│ (GPU)        │     │  + Quantize  │     │ Inference    │
+│              │     │              │     │ (Camera)     │
+│ ~2GB model   │     │  ~5MB model  │     │ 30 FPS       │
+└──────────────┘     └──────────────┘     └──────────────┘
+```
+
+## Step 1: Training on Google Colab
+
+Using the TensorFlow Object Detection API with SSD-MobileNetV2:
+
+```python
+# Training configuration
+import tensorflow as tf
+from object_detection import model_lib_v2
+
+# SSD-MobileNetV2 is optimized for mobile/edge deployment
+# - Small model size (~15MB)
+# - Fast inference (~30ms per frame)
+# - Reasonable accuracy for object detection
+
+pipeline_config = 'ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8/pipeline.config'
+
+# Train
+model_lib_v2.train_loop(
+    pipeline_config_path=pipeline_config,
+    model_dir='training/',
+    num_train_steps=40000,
+    checkpoint_every_n=1000,
+)
+```
+
+After training, you'll have a standard TensorFlow SavedModel:
+
+```python
+# Export the trained model
+from object_detection import exporter_lib_v2
+
+exporter_lib_v2.export_inference_graph(
+    input_type='image_tensor',
+    pipeline_config_path=pipeline_config,
+    trained_checkpoint_dir='training/',
+    output_directory='exported_model/'
+)
+```
+
+## Step 2: Converting to TensorFlow Lite
+
+### Basic Conversion
+
+```python
+import tensorflow as tf
+
+# Load the SavedModel
+converter = tf.lite.TFLiteConverter.from_saved_model('exported_model/saved_model')
+
+# Convert
+tflite_model = converter.convert()
+
+# Save
+with open('model.tflite', 'wb') as f:
+    f.write(tflite_model)
+
+print(f"Model size: {len(tflite_model) / 1024 / 1024:.2f} MB")
+# Output: Model size: 12.45 MB
+```
+
+### Quantization: Making It Smaller and Faster
+
+Quantization reduces the model size and speeds up inference by converting 32-bit floating-point weights to 8-bit integers:
+
+```python
+# Post-training quantization
+converter = tf.lite.TFLiteConverter.from_saved_model('exported_model/saved_model')
+
+# Dynamic range quantization (simplest)
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+tflite_quantized = converter.convert()
+with open('model_quantized.tflite', 'wb') as f:
+    f.write(tflite_quantized)
+
+print(f"Quantized size: {len(tflite_quantized) / 1024 / 1024:.2f} MB")
+# Output: Quantized size: 3.21 MB (74% reduction!)
+```
+
+### Full Integer Quantization (Maximum Speed)
+
+For the absolute best edge performance, use full integer quantization with a representative dataset:
+
+```python
+import numpy as np
+
+# Representative dataset for calibration
+def representative_dataset():
+    for image_path in calibration_images[:100]:
+        image = load_and_preprocess(image_path)
+        yield [image.astype(np.float32)]
+
+converter = tf.lite.TFLiteConverter.from_saved_model('exported_model/saved_model')
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+converter.representative_dataset = representative_dataset
+converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+converter.inference_input_type = tf.uint8
+converter.inference_output_type = tf.uint8
+
+tflite_int8 = converter.convert()
+with open('model_int8.tflite', 'wb') as f:
+    f.write(tflite_int8)
+
+# Output: ~2.8 MB, 3-4x faster inference
+```
+
+### Quantization Comparison
+
+| Type | Model Size | Inference Speed | Accuracy Loss |
+|------|-----------|-----------------|---------------|
+| Float32 (original) | 12.4 MB | 150ms | Baseline |
+| Dynamic Range | 3.2 MB | 80ms | &lt;1% |
+| Full Integer (INT8) | 2.8 MB | 35ms | 1-3% |
+
+## Step 3: Running on Raspberry Pi
+
+### Setup
+
+```bash
+# On Raspberry Pi
+pip install tflite-runtime  # Lightweight runtime (no full TF needed)
+pip install opencv-python-headless
+pip install numpy
+```
+
+### Real-Time Inference
+
+```python
+# detect.py — Real-time object detection on Raspberry Pi
+import cv2
+import numpy as np
+import tflite_runtime.interpreter as tflite
+
+# Load TFLite model
+interpreter = tflite.Interpreter(model_path='model_int8.tflite')
+interpreter.allocate_tensors()
+
+# Get input/output details
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+input_shape = input_details[0]['shape']  # e.g., [1, 320, 320, 3]
+
+# Initialize camera
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+# Labels
+labels = load_labels('labelmap.txt')
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # Preprocess
+    input_height, input_width = input_shape[1], input_shape[2]
+    resized = cv2.resize(frame, (input_width, input_height))
+    input_data = np.expand_dims(resized, axis=0)
+
+    # Handle quantization input type
+    if input_details[0]['dtype'] == np.uint8:
+        input_data = input_data.astype(np.uint8)
+    else:
+        input_data = (input_data / 255.0).astype(np.float32)
+
+    # Run inference
+    interpreter.set_tensor(input_details[0]['index'], input_data)
+    interpreter.invoke()
+
+    # Get results
+    boxes = interpreter.get_tensor(output_details[0]['index'])[0]
+    classes = interpreter.get_tensor(output_details[1]['index'])[0]
+    scores = interpreter.get_tensor(output_details[2]['index'])[0]
+
+    # Draw detections
+    h, w = frame.shape[:2]
+    for i in range(len(scores)):
+        if scores[i] > 0.5:  # Confidence threshold
+            ymin, xmin, ymax, xmax = boxes[i]
+            x1, y1 = int(xmin * w), int(ymin * h)
+            x2, y2 = int(xmax * w), int(ymax * h)
+
+            label = labels[int(classes[i])]
+            confidence = f"{scores[i]:.1%}"
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, f"{label} {confidence}",
+                       (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                       0.6, (0, 255, 0), 2)
+
+    cv2.imshow('Detection', frame)
+    if cv2.waitKey(1) == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+```
+
+## Optimization Tips for Edge
+
+### 1. Use Hardware Acceleration
+
+Raspberry Pi 4 supports XNNPACK delegate for CPU optimization:
+
+```python
+interpreter = tflite.Interpreter(
+    model_path='model_int8.tflite',
+    num_threads=4,  # Use all 4 cores
+)
+```
+
+For Coral TPU (USB accelerator):
+
+```python
+from tflite_runtime.interpreter import load_delegate
+
+interpreter = tflite.Interpreter(
+    model_path='model_edgetpu.tflite',
+    experimental_delegates=[load_delegate('libedgetpu.so.1')]
+)
+# Inference drops from 35ms to ~5ms!
+```
+
+### 2. Frame Skipping
+
+If inference is slower than camera frame rate, skip frames:
+
+```python
+frame_count = 0
+SKIP_FRAMES = 2  # Process every 3rd frame
+
+while True:
+    ret, frame = cap.read()
+    frame_count += 1
+
+    if frame_count % (SKIP_FRAMES + 1) != 0:
+        continue  # Skip this frame
+
+    # Run inference on this frame
+    results = detect(frame)
+    draw_results(frame, results)
+```
+
+### 3. Region of Interest (ROI)
+
+Don't process the entire frame if you know where objects are likely to appear:
+
+```python
+# Only process the center 60% of the frame
+h, w = frame.shape[:2]
+roi = frame[int(h*0.2):int(h*0.8), int(w*0.2):int(w*0.8)]
+results = detect(roi)
+```
+
+## Conclusion
+
+The journey from a GPU-trained model to a real-time edge application requires careful optimization at every stage. TensorFlow Lite's conversion pipeline and quantization tools make it possible to run complex models on devices with a fraction of the computing power.
+
+The key lesson from the Custom Object Detection project: **accuracy is negotiable, latency is not**. On an edge device, a slightly less accurate model that runs at 30 FPS is infinitely more useful than a perfect model that takes 2 seconds per frame.

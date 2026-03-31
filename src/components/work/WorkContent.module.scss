@@ -1,0 +1,24 @@
+/* View mode transition animations */
+.contentContainer {
+  animation: viewFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  width: 100%;
+}
+
+.listMode {
+  /* List: full-width stacked layout */
+}
+
+.gridMode {
+  /* Grid: 2-column compact layout */
+}
+
+@keyframes viewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

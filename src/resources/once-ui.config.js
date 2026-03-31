@@ -1,7 +1,7 @@
 import { home } from "./content";
 
 // IMPORTANT: Replace with your own domain address - it's used for SEO in meta tags and schema
-const baseURL = "https://my-portfolio-virid-ten-14.vercel.app";
+const baseURL = "https://www.skyyydev.my.id";
 
 const routes = {
   "/": true,
@@ -20,8 +20,7 @@ const display = {
 // Enable password protection on selected routes
 // Set password in the .env file, refer to .env.example
 const protectedRoutes = {
-  "/work/automate-design-handovers-with-a-figma-to-code-pipeline": true,
-  "/work/Scalable-Basestation-System": true,
+  "/work/Scalable-Basestation-System": false,
 };
 
 // Import and set font for each variant

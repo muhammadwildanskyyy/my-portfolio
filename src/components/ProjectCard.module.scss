@@ -1,0 +1,74 @@
+/* Shared card styles — matches ProjectCardCompact visual treatment */
+.card {
+  border: 1px solid var(--neutral-alpha-weak);
+  border-radius: var(--radius-l);
+  overflow: hidden;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--neutral-alpha-weak);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  &:hover {
+    border-color: var(--brand-alpha-medium);
+    transform: translateY(-4px);
+    box-shadow:
+      0 12px 40px -8px var(--brand-alpha-weak),
+      0 4px 16px -4px rgba(0, 0, 0, 0.1);
+
+    .image {
+      transform: scale(1.03);
+    }
+
+    .overlay {
+      opacity: 1;
+    }
+  }
+
+  &:active {
+    transform: translateY(-2px) scale(0.99);
+  }
+}
+
+.imageWrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
+}
+
+.image {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block;
+  width: 100%;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.6) 0%,
+    transparent 50%
+  );
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 1.25rem;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.overlayText {
+  color: white;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .card {
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
+}

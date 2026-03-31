@@ -1,0 +1,310 @@
+---
+title: "Real-Time Multi-User Synchronization: Architecture Behind a Digital Scoring System"
+publishedAt: "2026-03-02"
+summary: "The engineering challenges of synchronizing data across multiple concurrent users with different roles in real-time. Covers role-based access, conflict resolution, optimistic updates, and data integrity patterns used in a competitive sports scoring system."
+tag: "Full-Stack Development"
+images:
+  - "/images/projects/app-silat/monitor.png"
+---
+
+## Overview
+
+Building a real-time multi-user application is one of the most challenging tasks in full-stack development. When multiple users are viewing and modifying the same data simultaneously — and they're making decisions that affect each other in real-time — the engineering complexity multiplies rapidly.
+
+The **Digital Scoring System for Pencak Silat** connects five distinct user roles into a synchronized ecosystem: **Admin**, **Judge** (multiple), **Jury Council**, **Timekeeper**, and **Spectator Monitor**. All roles see the same match state, but each has different permissions and views. A score entered by Judge 1 must appear on Judge 2's screen, the Jury Council's overview, and the Spectator Monitor — all within milliseconds.
+
+This article explores the architecture that makes this possible.
+
+## The Multi-Role Challenge
+
+In a Pencak Silat match, the data flow looks like this:
+
+```
+Admin                    → Creates match, assigns athletes
+  ↓
+Timekeeper               → Starts/stops round timer
+  ↓
+Judges (3-5 concurrent)  → Submit scores independently
+  ↓
+Jury Council             → Reviews scores, applies penalties, makes rulings
+  ↓
+Monitor                  → Displays live scores to audience
+```
+
+Each role:
+- Sees **different data** (judges don't see each other's scores until locked)
+- Has **different permissions** (only admin can create matches)
+- Operates **simultaneously** (all judges score at the same time)
+- Expects **instant updates** (delays feel like bugs)
+
+## Architecture: Event-Driven State Synchronization
+
+### Socket.IO Rooms for Role-Based Broadcasting
+
+Each match gets its own Socket.IO room, and each role gets a sub-room:
+
+```typescript
+// Server: Room structure
+io.on('connection', (socket) => {
+  const { matchId, role, userId } = socket.handshake.auth;
+
+  // Join match room (everyone in the match)
+  socket.join(`match:${matchId}`);
+
+  // Join role-specific room
+  socket.join(`match:${matchId}:${role}`);
+
+  // Join individual room for targeted messages
+  socket.join(`user:${userId}`);
+});
+```
+
+### Broadcasting Patterns
+
+Different events go to different audiences:
+
+```typescript
+// When a judge submits a score
+function handleScoreSubmission(matchId: string, judgeId: string, score: Score) {
+  // Save to database
+  const savedScore = await prisma.score.create({ data: score });
+
+  // Notify the Jury Council (they see all scores)
+  io.to(`match:${matchId}:JURY_COUNCIL`).emit('score:submitted', {
+    judgeId,
+    score: savedScore,
+  });
+
+  // Notify the submitting judge (confirmation)
+  io.to(`user:${judgeId}`).emit('score:confirmed', {
+    scoreId: savedScore.id,
+  });
+
+  // Notify the Monitor (aggregate scores only, not individual judge scores)
+  const aggregateScores = await calculateAggregateScores(matchId);
+  io.to(`match:${matchId}:MONITOR`).emit('scores:updated', aggregateScores);
+
+  // Do NOT notify other judges (they shouldn't see each other's scores)
+}
+```
+
+## Conflict Resolution
+
+### The Problem: Concurrent Modifications
+
+What happens when:
+- Judge 1 and Judge 2 submit scores at the exact same time?
+- The Jury Council applies a penalty while a judge is still scoring?
+- The timekeeper ends a round while a judge is mid-submission?
+
+### Solution 1: Optimistic Locking
+
+Use version numbers to detect conflicts:
+
+```typescript
+// Each match has a version field
+model Match {
+  id      String @id
+  version Int    @default(0)
+  // ...
+}
+
+async function updateMatchState(matchId: string, update: any, expectedVersion: number) {
+  try {
+    const result = await prisma.match.update({
+      where: {
+        id: matchId,
+        version: expectedVersion, // Only updates if version matches
+      },
+      data: {
+        ...update,
+        version: { increment: 1 },
+      },
+    });
+    return result;
+  } catch (error) {
+    // Version mismatch — someone else modified the data
+    throw new ConflictError('Match was modified by another user. Please refresh.');
+  }
+}
+```
+
+### Solution 2: Event Ordering with Timestamps
+
+For score submissions, we accept all submissions and use server timestamps to order them:
+
+```typescript
+async function submitScore(data: ScoreSubmission) {
+  const score = await prisma.score.create({
+    data: {
+      ...data,
+      serverTimestamp: new Date(), // Server time, not client time
+    },
+  });
+
+  // The server is the single source of truth for ordering
+  // Clients never determine the "final" order
+  return score;
+}
+```
+
+### Solution 3: State Machine for Match Flow
+
+The match follows strict state transitions, preventing invalid operations:
+
+```typescript
+const VALID_TRANSITIONS: Record<MatchStatus, MatchStatus[]> = {
+  PENDING:     ['IN_PROGRESS'],
+  IN_PROGRESS: ['ROUND_BREAK', 'COMPLETED', 'CANCELLED'],
+  ROUND_BREAK: ['IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+  COMPLETED:   [], // Terminal state
+  CANCELLED:   [], // Terminal state
+};
+
+async function transitionMatch(matchId: string, newStatus: MatchStatus) {
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+
+  if (!VALID_TRANSITIONS[match.status].includes(newStatus)) {
+    throw new Error(
+      `Invalid transition: ${match.status} → ${newStatus}`
+    );
+  }
+
+  // Enforce business rules per transition
+  if (newStatus === 'COMPLETED') {
+    await validateAllScoresSubmitted(matchId);
+  }
+
+  const updated = await prisma.match.update({
+    where: { id: matchId },
+    data: { status: newStatus },
+  });
+
+  // Broadcast state change to all roles
+  io.to(`match:${matchId}`).emit('match:status-changed', {
+    matchId,
+    oldStatus: match.status,
+    newStatus: updated.status,
+  });
+}
+```
+
+## Role-Based Access Control
+
+### Middleware for Socket Events
+
+```typescript
+// Middleware: check permissions before allowing actions
+const rolePermissions: Record<string, string[]> = {
+  ADMIN:         ['match:create', 'match:delete', 'match:assign-athletes'],
+  JUDGE:         ['score:submit', 'score:update-own'],
+  JURY_COUNCIL:  ['penalty:apply', 'score:override', 'match:ruling'],
+  TIMEKEEPER:    ['timer:start', 'timer:stop', 'timer:reset'],
+  MONITOR:       [], // Read-only
+};
+
+io.use((socket, next) => {
+  const { role } = socket.handshake.auth;
+  
+  // Store original emit for wrapping
+  const originalOn = socket.on.bind(socket);
+  
+  socket.on = (event: string, handler: Function) => {
+    return originalOn(event, (...args: any[]) => {
+      if (!rolePermissions[role]?.includes(event)) {
+        socket.emit('error', { message: `Permission denied for ${event}` });
+        return;
+      }
+      handler(...args);
+    });
+  };
+
+  next();
+});
+```
+
+## Optimistic UI Updates
+
+To make the interface feel instant, we update the UI before the server confirms:
+
+```typescript
+// Client-side: Judge scoring interface
+function ScoreButton({ matchId, corner, technique, points }) {
+  const [isPending, setIsPending] = useState(false);
+
+  const handleScore = () => {
+    // 1. Optimistic update — show immediately
+    setIsPending(true);
+    addScoreToUI({ corner, technique, points, status: 'pending' });
+
+    // 2. Send to server
+    socket.emit('score:submit', {
+      matchId, corner, technique, points,
+    });
+  };
+
+  // 3. Listen for confirmation
+  useEffect(() => {
+    socket.on('score:confirmed', ({ scoreId }) => {
+      updateScoreStatus(scoreId, 'confirmed');
+      setIsPending(false);
+    });
+
+    socket.on('score:rejected', ({ reason }) => {
+      removeOptimisticScore();
+      showError(reason);
+      setIsPending(false);
+    });
+  }, []);
+
+  return (
+    <button
+      onClick={handleScore}
+      disabled={isPending}
+      className={isPending ? 'opacity-50' : ''}
+    >
+      +{points} {technique}
+    </button>
+  );
+}
+```
+
+## Data Integrity Safeguards
+
+### 1. Score Locking
+
+Once a round ends, scores are locked and cannot be modified without Jury Council override:
+
+```typescript
+async function lockRoundScores(matchId: string, round: number) {
+  await prisma.score.updateMany({
+    where: { matchId, round },
+    data: { locked: true },
+  });
+
+  io.to(`match:${matchId}:JUDGE`).emit('round:locked', { round });
+}
+```
+
+### 2. Audit Trail
+
+Every modification is logged for transparency:
+
+```typescript
+async function createAuditEntry(action: string, data: any, userId: string) {
+  await prisma.auditLog.create({
+    data: {
+      action,        // 'SCORE_SUBMITTED', 'PENALTY_APPLIED', etc.
+      payload: data, // JSON of the action details
+      userId,
+      timestamp: new Date(),
+    },
+  });
+}
+```
+
+## Conclusion
+
+Building a real-time multi-user system requires thinking beyond traditional request-response patterns. The combination of Socket.IO rooms for role-based broadcasting, optimistic locking for conflict resolution, state machines for valid transitions, and optimistic UI updates for perceived performance creates a system that feels instant while maintaining strict data integrity.
+
+The key insight from the Pencak Silat scoring system: **real-time doesn't mean real-time everywhere**. Judges need instant feedback on their own submissions, but the spectator monitor can tolerate a 500ms delay. Design your system with **tiered latency requirements** based on each role's needs.

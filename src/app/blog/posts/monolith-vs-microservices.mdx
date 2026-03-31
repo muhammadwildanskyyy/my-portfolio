@@ -1,0 +1,200 @@
+---
+title: "Monolith vs Microservices: A Practical Guide to Knowing When to Migrate"
+publishedAt: "2026-03-25"
+summary: "Cut through the hype and understand the real trade-offs between monolithic and microservices architectures. Learn the warning signs that indicate it's time to migrate, and explore the polyglot strategy used in an enterprise-grade distributed system."
+tag: "System Design"
+images:
+  - "/images/work/gnexa.png"
+---
+
+## Overview
+
+The "Monolith vs Microservices" debate is one of the most discussed topics in software engineering. Unfortunately, most discussions devolve into dogma — either "microservices are the future" or "monoliths are underrated." The truth is far more nuanced.
+
+Having built **G-NEXA** — a full-scale polyglot microservices architecture with Go, NestJS, and Express services orchestrated through Kong API Gateway — I've experienced both the power and the pain of microservices. This article shares the practical frameworks I use to decide **when** each architecture makes sense.
+
+## The Monolith: Simpler Than You Think
+
+A monolith is a single deployable unit where all business logic lives in one codebase and one process. Despite its reputation, this architecture has major advantages:
+
+```
+┌────────────────────────────────────────┐
+│           Monolith Application         │
+│                                        │
+│  ┌──────────┐  ┌──────────┐           │
+│  │  Users   │  │ Products │           │
+│  └──────────┘  └──────────┘           │
+│  ┌──────────┐  ┌──────────┐           │
+│  │  Orders  │  │ Payments │           │
+│  └──────────┘  └──────────┘           │
+│                                        │
+│        Single Database (PostgreSQL)    │
+└────────────────────────────────────────┘
+```
+
+**Advantages:**
+- **Simple deployment**: One build, one artifact, one deploy
+- **Easy debugging**: Single process, single log stream, stack traces work naturally
+- **Transactional consistency**: Database transactions span the entire domain
+- **Low latency**: Function calls instead of network calls
+- **Smaller team efficiency**: Less operational overhead
+
+**When a monolith works:**
+- Team size is under 10 developers
+- The domain is well-understood and stable
+- You're in the early stages (MVP, prototyping)
+- Deployment frequency is moderate
+
+## Microservices: The Distributed Trade-Off
+
+Microservices decompose the system into independently deployable services, each owning its own data and business logic:
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Product   │    │    Order    │    │   Finance   │
+│  Service    │    │   Service   │    │   Service   │
+│   (Go)      │    │  (NestJS)   │    │  (Express)  │
+│             │    │             │    │             │
+│ PostgreSQL  │    │  MongoDB    │    │ PostgreSQL  │
+└──────┬──────┘    └──────┬──────┘    └──────┬──────┘
+       │                  │                  │
+       └──────────────────┼──────────────────┘
+                          │
+                    ┌─────┴─────┐
+                    │   Kong    │
+                    │  Gateway  │
+                    └───────────┘
+```
+
+**Advantages:**
+- **Independent deployment**: Ship features without coordinating with every team
+- **Technology freedom**: Use the best tool for each job (Go for performance, NestJS for productivity)
+- **Targeted scaling**: Scale only the services that need it
+- **Fault isolation**: One failing service doesn't bring down the whole system
+- **Team autonomy**: Small teams own entire services end-to-end
+
+**The hidden costs:**
+- **Network complexity**: Every function call becomes a network call
+- **Data consistency**: No more simple database transactions
+- **Operational overhead**: Logging, monitoring, tracing across services
+- **Testing complexity**: Integration testing requires running multiple services
+- **Distributed debugging**: "Which service failed?" becomes a daily question
+
+## The Warning Signs: When to Migrate
+
+Based on my experience building G-NEXA, here are the concrete signals that a monolith is reaching its limits:
+
+### 1. Deploy Conflicts
+When multiple teams need to deploy different features but can't because they share the same artifact, it's a sign that your monolith has grown beyond one team's capacity.
+
+### 2. Scaling Mismatch
+If your image processing logic needs 10x more CPU than your user authentication, but you're forced to scale the entire application, you're wasting resources.
+
+### 3. Technology Lock-in
+When your Python-based ML model can't be efficiently integrated into your Node.js monolith, or when Go's concurrency model would dramatically improve a specific module's performance, the monolith becomes a constraint.
+
+### 4. Long Build/Test Cycles
+When your CI/CD pipeline takes 30+ minutes because a small change triggers a full rebuild and test suite, velocity drops.
+
+### 5. Unclear Ownership
+When every developer needs to understand the entire codebase to make changes safely, onboarding slows and bugs increase.
+
+## The G-NEXA Migration Strategy
+
+When we decided to build G-NEXA as microservices, we followed the **Strangler Fig Pattern** — gradually extracting services rather than doing a big-bang rewrite.
+
+### Step 1: Identify Domain Boundaries
+
+Using **Domain-Driven Design (DDD)**, we identified clear bounded contexts:
+
+- **Product Context**: Catalog, categories, stock management
+- **Order Context**: Cart, orders, invoices, shipping
+- **User Context**: Authentication, profiles, stores
+- **Finance Context**: Payments, transactions, refunds
+- **Media Context**: File uploads, image processing
+
+### Step 2: Choose Technology Per Domain
+
+Each domain was matched with the best technology:
+
+```
+Product  → Go       (high-performance, concurrent stock operations)
+Order    → NestJS   (complex business logic, TypeScript safety)
+User     → NestJS   (rapid development, auth ecosystem)
+Finance  → Express  (lightweight, payment gateway integrations)
+Media    → Express  (streaming, file handling)
+```
+
+### Step 3: Database Per Service
+
+Each service owns its database, ensuring loose coupling:
+
+```
+Product  → PostgreSQL (relational product data)
+Order    → MongoDB    (flexible order documents)
+User     → PostgreSQL (structured user profiles)
+Finance  → PostgreSQL (transactional payment data)
+Media    → PostgreSQL (metadata storage)
+```
+
+### Step 4: Communication Layer
+
+We implemented a dual-communication strategy:
+- **gRPC** for synchronous service-to-service calls (type-safe, fast)
+- **Apache Kafka** for asynchronous event-driven communication (decoupled, resilient)
+
+### Step 5: API Gateway
+
+**Kong API Gateway** serves as the single entry point, handling:
+- Request routing to appropriate services
+- Rate limiting and authentication
+- Load balancing
+- API versioning
+
+## The Database-Per-Service Challenge
+
+The biggest trade-off in microservices is losing **ACID transactions** across services. In a monolith, creating an order and decrementing stock is a single database transaction:
+
+```sql
+BEGIN;
+  INSERT INTO orders (product_id, quantity) VALUES ('prod_1', 2);
+  UPDATE products SET stock = stock - 2 WHERE id = 'prod_1';
+COMMIT;
+```
+
+In microservices, this becomes a **distributed transaction**. We solved this with the **Saga Pattern**:
+
+```
+1. Order Service → Create order (PENDING)
+2. Order Service → Request stock reservation via gRPC
+3. Product Service → Reserve stock (SUCCESS/FAIL)
+4. If SUCCESS → Order Service confirms order
+5. If FAIL → Order Service cancels order (compensating transaction)
+```
+
+For eventual consistency scenarios, Kafka events ensure all services eventually reconcile:
+
+```
+[Order Created] → Kafka → Finance Service (create invoice)
+                        → Media Service (generate receipt)
+                        → User Service (update order history)
+```
+
+## Decision Framework
+
+Use this practical framework:
+
+| Factor | Choose Monolith | Choose Microservices |
+|--------|----------------|---------------------|
+| Team size | < 10 developers | > 10 developers |
+| Domain complexity | Single, well-understood | Multiple bounded contexts |
+| Scaling needs | Uniform | Variable per component |
+| Deployment frequency | Weekly/monthly | Daily/continuous |
+| Technology needs | Single stack sufficient | Polyglot advantage |
+| Consistency requirements | Strong ACID needed | Eventual consistency acceptable |
+
+## Conclusion
+
+Neither architecture is inherently superior. The monolith is not legacy, and microservices are not a silver bullet. The right choice depends on your team size, domain complexity, scaling requirements, and operational maturity.
+
+Start with a well-structured monolith. Migrate to microservices only when the concrete problems demand it — and when you have the operational capacity to handle the distributed complexity. The worst outcome is a **distributed monolith**: all the complexity of microservices with none of the benefits.

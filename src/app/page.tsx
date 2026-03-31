@@ -14,7 +14,7 @@ import {
   Schema,
 } from "@once-ui-system/core";
 import { home, about, person, newsletter, baseURL, routes } from "@/resources";
-import { Mailchimp } from "@/components";
+import { Mailchimp, TechStackArsenal } from "@/components";
 import { Projects } from "@/components/work/Projects";
 import { Posts } from "@/components/blog/Posts";
 
@@ -125,8 +125,11 @@ export default function Home() {
         <Projects range={[5, 5]}  />
       </RevealFx>
 
+      {/* tech stack arsenal */}
+      <TechStackArsenal />
+
       {routes["/blog"] && (
-        <Flex fillWidth gap="24" mobileDirection="column">
+        <Flex fillWidth gap="24" s={{ direction: "column" }}>
           <Flex flex={1} paddingLeft="l" paddingTop="24">
             <Heading as="h2" variant="display-strong-xs" wrap="balance">
               Latest from the blog

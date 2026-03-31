@@ -1,0 +1,277 @@
+---
+title: "Event-Driven Architecture with Apache Kafka: From Theory to Implementation"
+publishedAt: "2026-03-22"
+summary: "Explore the fundamentals of event-driven architecture and how Apache Kafka enables asynchronous, decoupled communication between microservices. Includes real implementation patterns like event sourcing, saga orchestration, and dead letter queues."
+tag: "Backend Architecture"
+images:
+  - "/images/work/gnexa.png"
+---
+
+## Overview
+
+In a microservices architecture, services need to communicate. The two fundamental approaches are **synchronous** (request-response, like gRPC) and **asynchronous** (event-driven, like message queues). While synchronous communication is simpler, it creates **tight coupling** — if the downstream service is slow or down, the caller is blocked.
+
+**Event-Driven Architecture (EDA)** flips this model. Instead of services calling each other directly, they **publish events** that other services **subscribe to** and process independently. This is the backbone of systems that need to be resilient, scalable, and truly decoupled.
+
+In the **G-NEXA** microservices platform, we use **Apache Kafka** as our event backbone alongside gRPC for synchronous calls. This article explores why, how, and when to use event-driven patterns.
+
+## What is Apache Kafka?
+
+Apache Kafka is a distributed event streaming platform. Unlike traditional message queues (RabbitMQ, SQS), Kafka is designed as a **durable, ordered log**:
+
+```
+                    Kafka Cluster
+┌──────────────────────────────────────────┐
+│                                          │
+│  Topic: order-events                     │
+│  ┌─────┬─────┬─────┬─────┬─────┬─────┐  │
+│  │  0  │  1  │  2  │  3  │  4  │  5  │  │  ← Partition 0
+│  └─────┴─────┴─────┴─────┴─────┴─────┘  │
+│  ┌─────┬─────┬─────┬─────┐              │
+│  │  0  │  1  │  2  │  3  │              │  ← Partition 1
+│  └─────┴─────┴─────┴─────┘              │
+│  ┌─────┬─────┬─────┬─────┬─────┐        │
+│  │  0  │  1  │  2  │  3  │  4  │        │  ← Partition 2
+│  └─────┴─────┴─────┴─────┴─────┘        │
+│                                          │
+└──────────────────────────────────────────┘
+```
+
+Key properties:
+- **Durable**: Events are persisted to disk and replicated
+- **Ordered**: Events within a partition are strictly ordered
+- **Scalable**: Partitions distribute load across brokers
+- **Replayable**: Consumers can re-read events from any offset
+
+## The Event-Driven Pattern
+
+### Traditional Synchronous Flow
+
+```
+Client → API Gateway → Order Service → Product Service (HTTP/gRPC)
+                                      → Finance Service (HTTP/gRPC)
+                                      → User Service (HTTP/gRPC)
+```
+
+Problem: Order Service must wait for **all three** downstream calls. If Finance is slow, the entire order creation is slow.
+
+### Event-Driven Flow
+
+```
+Client → API Gateway → Order Service → Kafka
+                                         ↓
+                                    ┌────┴────────────────┐
+                                    │                     │
+                              Finance Service      User Service
+                              (consumes event)    (consumes event)
+```
+
+The Order Service publishes an event and returns immediately. Downstream services process the event at their own pace, independently.
+
+## Implementation in G-NEXA
+
+### Producer: Publishing Events
+
+When an order is created in the NestJS Order Service, we publish a Kafka event:
+
+```typescript
+// order.service.ts (NestJS)
+import { Inject } from '@nestjs/common';
+import { ClientKafka } from '@nestjs/microservices';
+
+@Injectable()
+export class OrderService {
+  constructor(
+    @Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka,
+  ) {}
+
+  async createOrder(dto: CreateOrderDto): Promise<Order> {
+    // 1. Create the order in MongoDB
+    const order = await this.orderRepository.create(dto);
+
+    // 2. Publish event to Kafka
+    this.kafkaClient.emit('order.created', {
+      key: order.id,
+      value: {
+        orderId: order.id,
+        userId: dto.userId,
+        products: dto.items,
+        totalAmount: order.totalAmount,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    // 3. Return immediately — don't wait for downstream processing
+    return order;
+  }
+}
+```
+
+### Consumer: Processing Events
+
+The Finance Service subscribes to `order.created` events to generate invoices:
+
+```javascript
+// finance/kafka.consumer.js (Express)
+const { Kafka } = require('kafkajs');
+
+const kafka = new Kafka({
+  clientId: 'finance-service',
+  brokers: ['kafka:9092'],
+});
+
+const consumer = kafka.consumer({ groupId: 'finance-group' });
+
+async function startConsumer() {
+  await consumer.connect();
+  await consumer.subscribe({ topic: 'order.created', fromBeginning: false });
+
+  await consumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      const event = JSON.parse(message.value.toString());
+      
+      // Create invoice based on order event
+      await invoiceService.createInvoice({
+        orderId: event.orderId,
+        userId: event.userId,
+        amount: event.totalAmount,
+        status: 'PENDING',
+      });
+
+      console.log(`Invoice created for order ${event.orderId}`);
+    },
+  });
+}
+```
+
+### Event Schema
+
+We define clear event schemas to maintain contract compatibility:
+
+```typescript
+// Shared event type definition
+interface OrderCreatedEvent {
+  orderId: string;
+  userId: string;
+  products: Array<{
+    productId: string;
+    quantity: number;
+    price: number;
+  }>;
+  totalAmount: number;
+  timestamp: string;
+}
+
+interface OrderCancelledEvent {
+  orderId: string;
+  reason: string;
+  refundAmount: number;
+  timestamp: string;
+}
+```
+
+## Advanced Patterns
+
+### 1. Saga Pattern for Distributed Transactions
+
+A saga coordinates a sequence of local transactions. If one step fails, compensating transactions undo previous steps:
+
+```
+Order Saga:
+  1. Order Service    → Create order (PENDING)      → emit 'order.created'
+  2. Product Service  → Reserve stock               → emit 'stock.reserved'
+  3. Finance Service  → Process payment             → emit 'payment.processed'
+  4. Order Service    → Confirm order (CONFIRMED)   → emit 'order.confirmed'
+
+Compensation (if payment fails):
+  3. Finance Service  → Payment failed              → emit 'payment.failed'
+  2. Product Service  → Release stock               → (compensating transaction)
+  1. Order Service    → Cancel order                 → emit 'order.cancelled'
+```
+
+### 2. Dead Letter Queue (DLQ)
+
+When a consumer fails to process a message after several retries, the message is routed to a dead letter topic for later investigation:
+
+```typescript
+// Dead letter queue handler
+await consumer.run({
+  eachMessage: async ({ topic, message }) => {
+    try {
+      await processMessage(message);
+    } catch (error) {
+      retryCount++;
+      if (retryCount >= MAX_RETRIES) {
+        // Send to dead letter topic
+        await producer.send({
+          topic: `${topic}.dlq`,
+          messages: [{
+            key: message.key,
+            value: message.value,
+            headers: {
+              'original-topic': topic,
+              'error-message': error.message,
+              'retry-count': String(retryCount),
+            },
+          }],
+        });
+      }
+    }
+  },
+});
+```
+
+### 3. Idempotency
+
+Events can be delivered more than once (at-least-once delivery). Consumers must handle duplicates:
+
+```typescript
+async function processOrderEvent(event: OrderCreatedEvent) {
+  // Check if this event was already processed
+  const existing = await invoiceRepository.findByOrderId(event.orderId);
+  if (existing) {
+    console.log(`Event already processed for order ${event.orderId}, skipping`);
+    return;
+  }
+
+  // Process the event
+  await invoiceRepository.create({
+    orderId: event.orderId,
+    amount: event.totalAmount,
+    status: 'PENDING',
+  });
+}
+```
+
+## Kafka vs Traditional Message Queues
+
+| Feature | Kafka | RabbitMQ | AWS SQS |
+|---------|-------|----------|---------|
+| Model | Log-based | Queue-based | Queue-based |
+| Ordering | Per-partition | Per-queue | Best-effort |
+| Replay | Yes (offset reset) | No (consumed = gone) | No |
+| Throughput | Millions/sec | Thousands/sec | Thousands/sec |
+| Persistence | Disk (configurable) | Memory + disk | Managed |
+| Consumer groups | Native | Manual | Native |
+| Use case | Event streaming, analytics | Task distribution | Cloud-native queuing |
+
+## When to Use Events vs Direct Calls
+
+| Scenario | Use gRPC (Sync) | Use Kafka (Async) |
+|----------|-----------------|-------------------|
+| Need immediate response | ✅ | ❌ |
+| Fire-and-forget | ❌ | ✅ |
+| Multiple consumers | ❌ | ✅ |
+| Ordering matters | Depends | ✅ (within partition) |
+| Audit trail / replay | ❌ | ✅ |
+| Real-time validation | ✅ | ❌ |
+
+In G-NEXA, we use **both**:
+- **gRPC** when the Order Service needs to validate stock in real-time before accepting an order
+- **Kafka** when the Order Service needs to notify Finance, Media, and User services that an order was created
+
+## Conclusion
+
+Event-driven architecture with Kafka transforms how services interact in a distributed system. By decoupling producers from consumers, you gain resilience (services fail independently), scalability (consumers scale horizontally), and flexibility (new consumers can be added without modifying producers).
+
+The key is to use it where it makes sense — not every interaction needs to be asynchronous. The most robust architectures, like G-NEXA, combine synchronous gRPC for real-time validation with asynchronous Kafka events for eventual consistency workflows.

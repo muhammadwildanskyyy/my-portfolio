@@ -13,6 +13,7 @@ import {
 import { CodeBlock } from "@once-ui-system/core";
 import { TextProps } from "@once-ui-system/core";
 import { MediaProps } from "@once-ui-system/core";
+import { Mermaid } from "@/components/Mermaid";
 
 type CustomLinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   href: string;
@@ -120,6 +121,11 @@ function createCodeBlock(props: any) {
     
     // Extract language from className (format: language-xxx)
     const language = className.replace('language-', '');
+
+    if (language === 'mermaid') {
+      return <Mermaid chart={children} />;
+    }
+
     const label = language.charAt(0).toUpperCase() + language.slice(1);
     
     return (
@@ -156,7 +162,21 @@ const components = {
   pre: createCodeBlock as any,
   Heading,
   Text,
-  CodeBlock,
+  CodeBlock: (props: any) => {
+    
+    if (!props.codes || !Array.isArray(props.codes) || props.codes.length === 0) {
+      // Graceful fallback to prevent "reading 'label'" crashes inside @once-ui-system/core if explicitly empty
+      return <CodeBlock {...props} codes={[{ code: "", language: "plaintext", label: "Code" }]} />;
+    }
+
+    // Auto-patch missing labels so the core CodeBlock mapping doesn't throw runtime TypeErrors
+    const safeCodes = props.codes.map((c: any, index: number) => ({
+      ...c,
+      label: c.label || c.language || `Snippet ${index + 1}`
+    }));
+
+    return <CodeBlock {...props} codes={safeCodes} />;
+  },
   InlineCode,
   Accordion: dynamic(() => import("@once-ui-system/core").then(mod => mod.Accordion)),
   AccordionGroup: dynamic(() => import("@once-ui-system/core").then(mod => mod.AccordionGroup)),

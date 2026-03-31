@@ -1,7 +1,7 @@
-import { Column, Heading, Meta, Schema, Text } from "@once-ui-system/core";
-import { Mailchimp } from "@/components";
-import { Posts } from "@/components/blog/Posts";
+import { Column, Meta, Schema } from "@once-ui-system/core";
 import { baseURL, blog, person, newsletter } from "@/resources";
+import { getPosts } from "@/app/utils/utils";
+import { BlogContent } from "@/components/blog/BlogContent";
 
 export async function generateMetadata() {
   return Meta.generate({
@@ -14,6 +14,15 @@ export async function generateMetadata() {
 }
 
 export default function Blog() {
+  const allPosts = getPosts(["src", "app", "blog", "posts"]);
+
+  const sortedPosts = allPosts.sort((a, b) => {
+    return (
+      new Date(b.metadata.publishedAt).getTime() -
+      new Date(a.metadata.publishedAt).getTime()
+    );
+  });
+
   return (
     <Column maxWidth="s">
       <Schema
@@ -29,16 +38,7 @@ export default function Blog() {
           image: `${baseURL}${person.avatar}`,
         }}
       />
-      <Heading marginBottom="l" variant="display-strong-s">
-        {blog.title}
-      </Heading>
-      <Column fillWidth flex={1}>
-        <Posts range={[1, 1]} thumbnail direction="row" />
-        <Posts range={[3, 4]} direction="row" columns="2" />
-        <Posts range={[2,2]} thumbnail direction="row" />
-      </Column>
-      {/* {newsletter.display && <Mailchimp newsletter={newsletter} />} */}
+      <BlogContent posts={sortedPosts} title={blog.title} />
     </Column>
-    // <Text>Coming Soon</Text>
   );
 }
