@@ -119,10 +119,10 @@ export default function Home() {
       </Column>
       {/* show project */}
       <RevealFx translateY="16" delay={0.6}>
-        <Projects range={[3, 3]} />
+        <Projects range={[1, 2]} />
       </RevealFx>
-      <RevealFx translateY="16" delay={0.6}>
-        <Projects range={[5, 5]}  />
+      <RevealFx translateY="16" delay={0.6} >
+        <Projects range={[6, 8]} />
       </RevealFx>
 
       {/* tech stack arsenal */}
