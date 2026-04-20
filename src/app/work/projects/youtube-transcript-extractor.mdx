@@ -59,9 +59,39 @@ Built from the ground up for high performance and seamless user experience, the 
 - **Framer Motion & Three.js**: Dictates spatial animation choreography and spatial layouts across UI segments.
 - **Zod**: Ensures strict runtime typescript parsing and API payload schema validation.
 
-## The Engineering Challenge
+## Technical Deep Dive: Multi-Tiered Extraction Resilience
 
-The primary challenge in building this application was establishing a reliable pipeline from raw data extraction to actionable AI insight within seconds. Traditional YouTube transcript APIs or naive scraping mechanisms often fail due to sudden payload alterations or bot-mitigations. By integrating `youtubei.js`, the platform intelligently queries the Innertube API infrastructure as an official client, fetching subtitle arrays accurately without rate-limiting penalties.
+YouTube's internal APIs (Innertube) are notoriously difficult to scrape. Naive requests are often blocked by visitor-signature requirements or bot detection. I engineered a multi-tiered approach that cycles through extraction strategies until success is achieved.
+
+```typescript
+// src/data/services/transcript/generate-transcript.ts
+export const generateTranscript = async (id: string) => {
+    // 1. Initial Scraping with Browser Header Spoofing
+    const pageResponse = await fetch(`https://www.youtube.com/watch?v=${id}`, {
+        headers: { 'User-Agent': BROWSER_UA, ...SEC_HEADERS }
+    });
+    
+    // 2. "InnerTube" Action Injection
+    // If direct scraping fails, we initialize an InnerTube session 
+    // and attempt to execute a /get_transcript action with spoofed client versions.
+    const youtube = await Innertube.create({ client_type: ClientType.WEB });
+    youtube.session.context.client.visitorData = visitorData;
+    youtube.session.context.client.clientVersion = '2.20260312.08.00';
+
+    // 3. Multi-Formatted Fallback
+    // If the library fails, we manually query timedtext endpoints 
+    // with different formats (json3, vtt, xml) and "Golden Header" strategies.
+    for (const fmt of ['json3', 'vtt', 'xml']) {
+        const body = await fetch(transcriptUrl, { headers: goldenHeaders });
+        if (body.trim().length > 0) return parse(body, fmt);
+    }
+};
+```
+
+### Rationale
+By implementing a tiered fallback system, the app maintains an extraction success rate significantly higher than standard API-only solutions. The use of "Golden Header" strategies—which include captured `visitorData` and `clientVersion` from real browser sessions—allows the extraction service to bypass most automated bot mitigations.
+
+## The Engineering Challenge
 
 Subsequently, sending hours of parsed transcript strings to OpenAI introduced token-limit management challenges. Effectively bridging the Vercel AI SDK to stream the prompt completions meant adjusting context lengths and employing `Zod` to assure the AI structured its responses in specific JSON formats. 
 

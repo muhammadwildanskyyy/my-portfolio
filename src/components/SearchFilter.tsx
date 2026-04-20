@@ -33,12 +33,18 @@ export interface SearchFilterProps {
   totalResults?: number;
   /** Filtered results count */
   filteredResults?: number;
-  /** Enable view mode toggle */
+  /** Enable view toggle (grid/list) */
   showViewToggle?: boolean;
   /** Current view mode */
   viewMode?: ViewMode;
   /** Callback when view mode changes */
   onViewModeChange?: (mode: ViewMode) => void;
+  /** Enable thumbnail toggle */
+  showThumbnailToggle?: boolean;
+  /** Current thumbnail visibility */
+  thumbnailVisible?: boolean;
+  /** Callback when thumbnail visibility changes */
+  onThumbnailVisibleChange?: (visible: boolean) => void;
 }
 
 export function SearchFilter({
@@ -50,11 +56,17 @@ export function SearchFilter({
   showViewToggle = false,
   viewMode = "list",
   onViewModeChange,
+  showThumbnailToggle = false,
+  thumbnailVisible = true,
+  onThumbnailVisibleChange,
 }: SearchFilterProps) {
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [sortNewest, setSortNewest] = useState(true);
   const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
+    filters.reduce((acc, f) => ({ ...acc, [f.key]: true }), {})
+  );
 
   const hasActiveFilters = useMemo(() => {
     return search.trim() !== "" || Object.values(activeFilters).some((v) => v.length > 0);
@@ -84,8 +96,6 @@ export function SearchFilter({
     }
 
     const newFilters = { ...activeFilters, [filterKey]: next };
-    
-    // Perform both updates side-by-side in the event handler, not inside a setState functional updater
     setActiveFilters(newFilters);
     notify(search, newFilters, sortNewest);
   };
@@ -102,6 +112,22 @@ export function SearchFilter({
     setSortNewest(true);
     notify("", {}, true);
   };
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const toggleAll = (expand: boolean) => {
+    const next = filters.reduce((acc, f) => ({ ...acc, [f.key]: expand }), {});
+    setExpandedGroups(next);
+  };
+
+  const allGroupsExpanded = useMemo(() => {
+    return Object.values(expandedGroups).every(v => v);
+  }, [expandedGroups]);
 
   const activeCount = useMemo(() => {
     return Object.values(activeFilters).reduce((sum, arr) => sum + arr.length, 0) + (search.trim() ? 1 : 0);
@@ -122,20 +148,32 @@ export function SearchFilter({
         <span className={styles.searchIcon}>🔍</span>
       </div>
 
-      {/* Filter Toggle */}
+      {/* Filter Toggle and Bulk Actions */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <button
-          className={styles.filterToggle}
-          onClick={() => setFiltersExpanded(!filtersExpanded)}
-          type="button"
-        >
-          <span>Filters{activeCount > 0 ? ` (${activeCount})` : ""}</span>
-          <span
-            className={`${styles.filterToggleIcon} ${filtersExpanded ? styles.filterToggleIconExpanded : ""}`}
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <button
+            className={styles.filterToggle}
+            onClick={() => setFiltersExpanded(!filtersExpanded)}
+            type="button"
           >
-            ▼
-          </span>
-        </button>
+            <span>Filters{activeCount > 0 ? ` (${activeCount})` : ""}</span>
+            <span
+              className={`${styles.filterToggleIcon} ${filtersExpanded ? styles.filterToggleIconExpanded : ""}`}
+            >
+              ▼
+            </span>
+          </button>
+          
+          {filtersExpanded && (
+            <button 
+              className={styles.bulkToggle}
+              onClick={() => toggleAll(!allGroupsExpanded)}
+              type="button"
+            >
+              {allGroupsExpanded ? "Collapse All" : "Expand All"}
+            </button>
+          )}
+        </div>
 
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {/* View Toggle */}
@@ -171,6 +209,20 @@ export function SearchFilter({
             </div>
           )}
 
+          {/* Thumbnail Toggle */}
+          {showThumbnailToggle && (
+            <button
+              className={`${styles.thumbnailToggle} ${thumbnailVisible ? styles.thumbnailToggleActive : ""}`}
+              onClick={() => onThumbnailVisibleChange?.(!thumbnailVisible)}
+              type="button"
+              id="thumbnail-visibility-toggle"
+              title={thumbnailVisible ? "Hide Images" : "Show Images"}
+            >
+              <span className={styles.toggleIcon}>{thumbnailVisible ? "🖼️" : "📄"}</span>
+              <span className={styles.toggleText}>{thumbnailVisible ? "Media" : "Text"}</span>
+            </button>
+          )}
+
           {/* Sort */}
           <button className={styles.sortButton} onClick={handleSortToggle} type="button">
             <span className={`${styles.sortIcon} ${!sortNewest ? styles.sortIconFlipped : ""}`}>↓</span>
@@ -186,36 +238,51 @@ export function SearchFilter({
         </div>
       </div>
 
-      {/* Filter Chips */}
+      {/* Filter Content */}
       <div
         className={`${styles.filterContent} ${filtersExpanded ? styles.filterContentExpanded : ""}`}
       >
         <div className={styles.filterSection}>
-          {filters.map((filter) => (
-            <div key={filter.key} className={styles.filterRow}>
-              <span className={styles.filterLabel}>
-                {filter.icon && <span className={styles.chipIcon}>{filter.icon} </span>}
-                {filter.label}
-              </span>
-              <div className={styles.chipsContainer}>
-                {filter.options.map((option) => {
-                  const isActive = (activeFilters[filter.key] || []).includes(option);
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`${styles.chip} ${isActive ? styles.chipActive : ""}`}
-                      onClick={() =>
-                        handleChipClick(filter.key, option, filter.multiSelect ?? false)
-                      }
-                    >
-                      {option}
-                    </button>
-                  );
-                })}
+          {filters.map((filter) => {
+            const isExpanded = expandedGroups[filter.key];
+            return (
+              <div key={filter.key} className={styles.filterGroup}>
+                <button 
+                  className={styles.filterLevelToggle}
+                  onClick={() => toggleGroup(filter.key)}
+                  type="button"
+                >
+                  <span className={styles.filterLabel}>
+                    {filter.icon && <span className={styles.chipIcon}>{filter.icon} </span>}
+                    {filter.label}
+                  </span>
+                  <span className={`${styles.rowToggleIcon} ${isExpanded ? styles.rowToggleIconExpanded : ""}`}>
+                    ▼
+                  </span>
+                </button>
+                
+                <div className={`${styles.rowContent} ${isExpanded ? styles.rowContentExpanded : ""}`}>
+                  <div className={styles.chipsContainer}>
+                    {filter.options.map((option) => {
+                      const isActive = (activeFilters[filter.key] || []).includes(option);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`${styles.chip} ${isActive ? styles.chipActive : ""}`}
+                          onClick={() =>
+                            handleChipClick(filter.key, option, filter.multiSelect ?? false)
+                          }
+                        >
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

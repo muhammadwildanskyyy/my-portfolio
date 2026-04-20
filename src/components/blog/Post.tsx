@@ -25,7 +25,7 @@ export default function Post({ post, thumbnail, direction }: PostProps) {
                 className={styles.card}
                 s={{ direction: "column" }}
                 fillWidth>
-                {post.metadata.image && thumbnail && (
+                {(post.metadata.image || (post.metadata.images && post.metadata.images.length > 0)) && thumbnail && (
                     <Flex className={styles.imageWrapper} flex={direction === "row" ? 4 : undefined} fillWidth={direction === "column"}>
                         <Media
                             priority
@@ -34,7 +34,7 @@ export default function Post({ post, thumbnail, direction }: PostProps) {
                             border="neutral-alpha-weak"
                             cursor="interactive"
                             radius="l"
-                            src={post.metadata.image}
+                            src={post.metadata.image || post.metadata.images[0]}
                             alt={'Thumbnail of ' + post.metadata.title}
                             aspectRatio="16 / 9"
                         />

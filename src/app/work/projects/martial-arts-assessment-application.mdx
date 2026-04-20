@@ -18,6 +18,13 @@ team:
     role: "Full-Stack Developer"
     avatar: "/images/avatar.jpg"
     linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
+techStack:
+  - "Next.js"
+  - "TypeScript"
+  - "PostgreSQL"
+  - "Prisma"
+  - "Socket.IO"
+category: "Sports Technology / Real-time"
 ---
 
 ## Overview
@@ -41,9 +48,41 @@ This Digital Scoring System for Pencak Silat is a web-based platform designed to
 - **Prisma**: A modern ORM that enables type-safe and intuitive database access, simplifying queries and migrations between the application and the PostgreSQL database.
 - **Socket.IO**: The core engine enabling real-time, bi-directional, and event-based communication that synchronizes the state of the match across all clients.
 
-## Challenges and Learnings
+## Technical Deep Dive: Late-Joiner Synchronization
 
-Developing this real-time system presented several unique challenges that became significant learning opportunities. The primary challenge was implementing a flawless real-time synchronization with **Socket.IO**. Ensuring that every score from multiple judges, every penalty, and every time-tick were broadcasted and rendered instantly across all clients without race conditions was complex. This required careful state management on both the server and client, as well as designing a robust event-based architecture. Handling edge cases, such as a judge's temporary disconnection and seamless reconnection without data loss, taught us invaluable lessons in building resilient real-time applications.
+The most complex challenge in this real-time scoring system was ensuring that a judge or official who joins a match already in progress receives the correct, up-to-the-second state. I implemented an automatic synchronization pattern using **Socket.io** that broadcasts the current match data as soon as a new connection is established.
+
+```typescript
+// server/ioServer.ts - Late-joiner synchronization logic
+ioServer.on("connection", (socket) => {
+    socket.on("joinMatch", (msg) => {
+        socket.join(msg.room);
+        
+        // AUTOMATIC SYNC: When a new user joins, push the current match state 
+        // to that specific socket immediately.
+        matchSeniController.syncMatch(ioServer, socket);
+        matchTandingController.syncMatch(ioServer, socket);
+        
+        ioServer.to(msg.room).emit(
+            "validasiUser",
+            `${msg.role} has joined room ${msg.room}.`
+        );
+    });
+
+    // Special handling for the Timekeeper role
+    socket.on("disconnect", () => {
+        if (socket.data.role === "timekeeper") {
+            // Safety measure: Stop the match clock if the timekeeper drops
+            ioServer.to("Match").emit("stopTime");
+        }
+    });
+});
+```
+
+### Rationale
+In high-stakes sports like Pencak Silat, data consistency is non-negotiable. If a Jury Council's internet blips, this pattern ensures they don't have to manually refresh or ask about the current score—they are re-synced instantly by the backend as soon as they reconnect.
+
+## Challenges and Learnings
 
 Another challenge was designing the database schema with **Prisma and PostgreSQL** to accurately model the complex relationships between matches, participants, judges, individual scores, and penalties. Structuring it for both write-intensive operations during a live match and efficient read operations for post-match analytics was a balancing act.
 

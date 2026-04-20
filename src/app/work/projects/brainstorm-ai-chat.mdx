@@ -1,0 +1,92 @@
+---
+title: "Brainstorm AI: Intelligent Ideation Platform"
+publishedAt: "2026-04-20"
+summary: "A premium AI-powered chatbot designed to supercharge the creative process. It moves beyond generic chat by implementing six world-class ideation frameworks — including SCAMPER and Six Thinking Hats — via structured Prompt Routing, helping teams generate breakthrough ideas systematically."
+images:
+  - "/images/projects/brainstrom/brainstrom1.png"
+  - "/images/projects/brainstrom/brainstrom2.png"
+  - "/images/projects/brainstrom/brainstrom3.png"
+
+team:
+  - name: "Muhammad Wildan"
+    role: "Full-Stack Developer"
+    avatar: "/images/avatar.jpg"
+    linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
+link: "https://brainstorming-ai-chat.vercel.app/"
+github: "https://github.com/muhammadwildanskyyy/Brainstorming-ai-chat"
+techStack:
+  - "Next.js"
+  - "FastAPI"
+  - "OpenAI"
+  - "PostgreSQL"
+  - "SQLAlchemy"
+  - "Framer Motion"
+  - "Docker"
+category: "AI / Productive"
+---
+
+## Overview
+
+**Live App:** [View Project](https://brainstorming-ai-chat.vercel.app/)
+
+**GitHub Repository:**
+```bash
+git clone https://github.com/muhammadwildanskyyy/Brainstorming-ai-chat.git
+```
+
+**Brainstorm AI** is more than just another chatbot; it is a dedicated creative companion built to solve the "blank page" problem. While generic LLMs can brainstorm, they often provide shallow or disorganized suggestions. This project addresses that by anchoring AI logic within established innovation methodologies. By combining a high-performance **FastAPI** backend with a modern **Next.js 15** frontend, Brainstorm AI offers a seamless, real-time environment for deep thinking and structured ideation.
+
+## Key Features
+
+- **Six Ideation Frameworks**: Deeply integrated prompts for SCAMPER, 5 Whys, Six Thinking Hats, Mind Mapping, Design Thinking, and Starbursting.
+- **Structured Prompt Routing**: A custom logic layer that selects and modifies system prompts based on the chosen framework to ensure the AI follows specific methodology rules.
+- **Real-Time Token Streaming**: Low-latency AI responses providing immediate feedback as ideas are generated.
+- **Context-Aware Summarization**: Automatic conversation summarization to maintain long-term memory without exceeding token limits.
+- **Advanced UI/UX**: Built with Framer Motion for premium animations, including smooth transitions between brainstorming modes and themes.
+- **Enterprise-Ready Auth**: Secure Google SSO integration via NextAuth.js for a seamless onboarding experience.
+
+## Technologies Used
+
+- **Next.js 15 (App Router)**: Orchestrating the frontend with the latest React features and optimized performance.
+- **FastAPI (Python 3.12)**: A high-performance asynchronous backend handles the AI logic, database interactions, and complex prompt engineering.
+- **OpenAI GPT-4o**: The engine behind the ideation, tuned through sophisticated system prompting.
+- **PostgreSQL & SQLAlchemy**: Robust relational data storage for user sessions and historical brainstorming data.
+- **Alembic**: Managed database migrations to ensure schema stability.
+- **Framer Motion**: Powering the "premium" feel of the interface with refined, interactive animations.
+- **Docker**: Containerized environment for consistent development and professional deployment.
+
+## Technical Deep Dive: Dynamic Framework Routing
+
+The core innovation of Brainstorm AI is its **framework-aware orchestration**. Instead of using a single static system prompt, the backend dynamically constructs the AI's "persona" and "logic rules" based on the user's selected brainstorming methodology.
+
+```python
+# backend/app/use_cases/chat_service.py
+async def _build_context(self, session_id: str, existing_summary: str, framework: str | None = None):
+    # DYNAMIC PROMPT ROUTING:
+    # If a framework (SCAMPER, Six Hats, etc.) is selected for a new session,
+    # we inject the specialized toolkit prompt as the primary instruction.
+    message_count = await self._message_repo.get_message_count(session_id)
+    
+    if framework and framework in FRAMEWORK_PROMPTS and message_count <= 1:
+        # Load specialized methodology from a central prompt library
+        system_content = FRAMEWORK_PROMPTS[framework] 
+    else:
+        # Fallback to general creative assistant if continuing
+        system_content = SYSTEM_PROMPT
+
+    # Context enrichment with conversational history/summary
+    if existing_summary:
+        system_content += f"\n\nEarlier context:\n{existing_summary}"
+        
+    messages.append({"role": "system", "content": system_content})
+    return messages
+```
+
+### Rationale
+By isolating the framework logic into a dedicated **Prompt Router**, the application ensures that the LLM adheres strictly to the constraints of each methodology (e.g., forcing exactly 7 steps for SCAMPER or 6 hats for De Bono). This architectural choice prevents "model drift" where the AI forgets its specific role during deep ideation cycles.
+
+## Challenges and Learnings
+
+Another challenge involved **asynchronous streaming** in a multi-container Docker environment. Synchronizing the FastAPI streaming generator with the Next.js frontend required fine-tuning the proxy layers and ensuring that the Vercel-optimized headers were correctly handled in both development and production.
+
+Through this project, I deepened my expertise in **AI Engineering**, specifically in how to guide LLMs toward specific behavioral outcomes (System Design) rather than just relying on generic prompts. It solidified my belief that the next generation of AI tools will be defined by how well they structure human creativity.

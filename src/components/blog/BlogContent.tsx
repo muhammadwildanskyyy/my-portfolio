@@ -27,6 +27,8 @@ interface BlogContentProps {
 export function BlogContent({ posts, title }: BlogContentProps) {
   const [filteredPosts, setFilteredPosts] = useState<PostData[]>(posts);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [showThumbnails, setShowThumbnails] = useState(true);
+
 
   // Extract unique tags
   const allTags = useMemo(() => {
@@ -148,6 +150,9 @@ export function BlogContent({ posts, title }: BlogContentProps) {
         showViewToggle
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        showThumbnailToggle
+        thumbnailVisible={showThumbnails}
+        onThumbnailVisibleChange={setShowThumbnails}
       />
 
       {filteredPosts.length > 0 ? (
@@ -167,7 +172,7 @@ export function BlogContent({ posts, title }: BlogContentProps) {
                 <Post
                   key={post.slug}
                   post={post}
-                  thumbnail={true}
+                  thumbnail={showThumbnails}
                   direction={viewMode === "grid" ? "column" : "row"}
                 />
               ))}

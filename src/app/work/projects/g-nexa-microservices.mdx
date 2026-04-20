@@ -148,4 +148,55 @@ The most complex hurdle during the development of G-NEXA was **service synchroni
 
 To mitigate this, I spearheaded a complete migration to **gRPC**. Generating strict Protobuf definitions ensured that our Go and Node-based environments passed binary-encoded data effortlessly, erasing the heavy JSON parsing loops. 
 
-Additionally, maintaining state consistency across isolated **Microservices** (Database-per-Service) introduced complex transaction boundaries. By designing a distributed invalidation caching strategy through Redis, the application began capturing incoming writes and invalidating stale catalog reads instantly. For complex distributed transactions, I introduced an **Event-Driven Strategy** via Kafka implementing Saga patterns and idempotency keys to ensure that failed inter-domain events could safely retry without duplicating records. Operating these moving parts seamlessly required intricate Docker container meshing and route alignments inside the Kong Gateway, solidifying my expertise in modern distributed backend systems.
+Additionally, maintaining state consistency across isolated **Microservices** (Database-per-Service) introduced complex transaction boundaries. By designing a distributed invalidation caching strategy through Redis, the application began capturing incoming writes and invalidating stale catalog reads instantly. For complex distributed transactions, I introduced an **Event-Driven Strategy** via Kafka implementing Saga patterns and idempotency keys to ensure that failed inter-domain events could safely retry without duplicating records. ## Technical Deep Dive: Concurrent Service Orchestration
+
+A critical challenge in microservices is orchestrating multiple communication protocols (HTTP, gRPC, and Kafka) within a single process without blocking. Below is a snippet of the **Finance Service** bootstrap logic, demonstrating how I manage concurrent listeners and graceful shutdowns in Go.
+
+```go
+// G-NEXA Finance Service: main.go snippet
+func main() {
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+
+    // 1. Initialize Resources
+    db := resources.InitDB(cfg)
+    redis := resources.InitRedis(cfg)
+
+    // 2. Orchestrate Kafka Consumers (Async Backbone)
+    consumer := kafka.NewConsumer(cfg.Kafka.Broker, cfg.Kafka.UserTopic)
+    go func() {
+        consumer.Start(ctx, func(c context.Context, msg []byte) error {
+            return kafka.HandlerConsumer(c, msg, walletUseCase)
+        })
+    }()
+
+    // 3. Start HTTP API Gateway (REST)
+    router := gin.New()
+    routes.SetupRoutes(router, walletHandler, paymentHandler)
+    go func() {
+        if err := router.Run(":" + cfg.App.Port); err != nil {
+            logger.Error(ctx, "Failed to start Gin server", err)
+        }
+    }()
+
+    // 4. Start gRPC Service Mesh (RPC)
+    grpcServer := grpc.NewServer()
+    financePb.RegisterFinanceServiceServer(grpcServer, financeGrpcHandler)
+    go func() {
+        if err := grpcServer.Serve(lis); err != nil {
+            logger.Error(ctx, "Failed to start gRPC server", err)
+        }
+    }()
+
+    // 5. Graceful Shutdown
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+
+    grpcServer.GracefulStop()
+    consumer.Close()
+}
+```
+
+### Why this matters
+By utilizing Go's **goroutines** for each transport layer (HTTP, gRPC, and Kafka), the service achieves true non-blocking orchestration. The **graceful shutdown** sequence ensures that in-flight Kafka messages are processed and gRPC connections are drained before the process exits, preventing data loss in transactional ledger operations.

@@ -1,0 +1,89 @@
+---
+title: "Mastering Structured Ideation: Beyond Generic Chatbots with Prompt Routing"
+publishedAt: "2026-04-20"
+summary: "Stop fighting with generic AI prompts. Learn how to implement Prompt Routing to force LLMs into specific innovation frameworks like SCAMPER or Six Thinking Hats, creating a more reliable and professional brainstorming experience."
+tag: "AI Engineering"
+images:
+  - "/images/projects/brainstrom/brainstrom1.png"
+---
+
+## The "Generic Chat" Problem
+
+We've all been there: you ask an AI for "creative ideas," and it gives you a list of ten slightly varied but ultimately shallow bullet points. The problem isn't usually the model; it's the **lack of structure**. 
+
+Innovation isn't just about having "ideas"—it's about viewing a problem through structured lenses. Professional ideation uses frameworks like **SCAMPER** (Substitute, Combine, Adapt, etc.) or **Six Thinking Hats**. To build a premium brainstorming tool like [Brainstorm AI](/work/projects/brainstorm-ai-chat), we needed a way to force the AI to respect these frameworks without the user having to write complex prompts every time.
+
+The solution? **Prompt Routing.**
+
+## What is Prompt Routing?
+
+Prompt Routing is the architectural layer that sits between the user's input and the LLM. Instead of sending a raw message, the system intelligently selects or "routes" the message through a specific **System Prompt** designed to enforce a methodology.
+
+In Brainstorm AI, we use a hybrid approach:
+1. **The Intent Layer**: A selection from the UI (e.g., "Use 5 Whys mode").
+2. **The Logic Router**: A backend service that fetches the specific methodology rules.
+3. **The Context Builder**: A logic block that merges these rules with user history.
+
+## The Implementation (FastAPI)
+
+Let's look at how we structure these prompts in the backend to ensure the model doesn't drift.
+
+```python
+# app/domain/brainstorming_prompts.py
+
+FRAMEWORK_PROMPTS = {
+    "scamper": (
+        "You are a SCAMPER innovation facilitator. "
+        "Systematically apply ALL 7 SCAMPER elements to the user's idea:\n"
+        "- S: Substitute, C: Combine, A: Adapt, M: Modify, P: Put to other uses, "
+        "E: Eliminate, R: Reverse.\n"
+        "Rules: Address EACH element clearly and highlight the TOP 3 promising ideas."
+    ),
+    "six_hats": (
+        "You are a Six Thinking Hats facilitator. Apply White, Red, Black, Yellow, "
+        "Green, and Blue hats in order. Dedicate a section to each with emojis."
+    )
+}
+```
+
+By separating these methodologies into a domain-specific file, we can version-control our "creative logic" independently of our application code.
+
+## Dynamic Context Building
+
+The real magic happens when you merge the framework with the conversation history. If you just send the framework prompt once, the AI might forget the rules as the chat gets longer. 
+
+In our `ChatService`, we implement a logic that prioritizes the framework rules during the initial exchange, then shifts to a lighter "Default" prompt while keeping the framework context in the conversation history summary.
+
+```python
+async def _build_context(self, session_id: str, framework: str = None):
+    # Select the rules
+    if framework and message_count <= 1:
+        rules = FRAMEWORK_PROMPTS[framework]
+    else:
+        rules = DEFAULT_SYSTEM_PROMPT
+
+    # Build the payload
+    messages = [{"role": "system", "content": rules}]
+    
+    # Add historical summary (crucial for long chats)
+    if summary:
+        messages.append({"role": "system", "content": f"Previous summary: {summary}"})
+        
+    return messages
+```
+
+## Why This Matters for UX
+
+When a user selects "Six Thinking Hats," they don't want to explain to the AI what the hats are. They want to say, "Here is my idea for a solar-powered coffee maker," and have the AI immediately respond with:
+
+- 🎩 **White Hat**: Facts about solar efficiency...
+- ❤️ **Red Hat**: Emotional appeal of sustainability...
+- 🖤 **Black Hat**: Potential weather dependency risks...
+
+This **instant structural resonance** is what makes an AI application feel "premium." It's the difference between a toy and a tool.
+
+## Conclusion
+
+Building Brainstorm AI taught us that the most valuable AI features aren't just wrappers around `chat.completions.create`. They are **systems of constraint**. By using Prompt Routing to enforce professional ideation frameworks, we can transform a standard LLM into a specialized innovation consultant.
+
+The next time you build an AI feature, ask yourself: *Should I let the user prompt the model, or should the model be routed by the system?*

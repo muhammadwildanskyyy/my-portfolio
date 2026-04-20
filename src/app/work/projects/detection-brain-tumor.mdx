@@ -12,6 +12,14 @@ team:
     avatar: "/images/avatar.jpg"
     linkedIn: "https://www.linkedin.com/in/muhammadwildanyulioardana"
 link: "https://github.com/muhammadwildanskyyy/detection-brain-tumor-with-cnn.git"
+techStack:
+  - "Python"
+  - "TensorFlow"
+  - "Keras"
+  - "Flask"
+  - "NumPy"
+  - "OpenCV"
+category: "Medical AI / Deep Learning"
 ---
 
 ## Overview
@@ -37,11 +45,8 @@ This project is a complete deep learning system designed for the multi-class cla
 
 ## Architecture CNN
 
-<CodeBlock
-  marginBottom="16"
-  codes={[
-    {
-      code: `# Defined model
+```python
+# Defined model
 model = Sequential()
 # Layers Convolution 1
 model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(400, 400, 1)))
@@ -55,7 +60,7 @@ model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Conv2D(128, (3, 3), activation='relu'))
 # model.add(BatchNormalization())
 model.add(MaxPooling2D(pool_size=(2, 2)))
-# Layers Convolution 4 (Tambahan untuk meningkatkan kompleksitas model)
+# Layers Convolution 
 model.add(Conv2D(256, (3, 3), activation='relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 # Layers Flatten
@@ -64,12 +69,37 @@ model.add(Flatten())
 model.add(Dense(256, activation='relu'))
 model.add(Dense(128, activation='relu'))
 # Layers Output
-model.add(Dense(4, activation='softmax'))`,
-      language: "tsx",
-      label: "src/detection_brain_tumor_with_cnn.ipynb",
-    },
-  ]}
-/>
+model.add(Dense(4, activation='softmax'))
+```
+
+## Technical Deep Dive: LLM-Ready Prediction Pipelines
+
+While many AI projects end at the model training stage, I designed this system with **LLM Integration** in mind. Instead of returning raw probability tensors, the backend uses a dedicated `Predictor` service that transforms model outputs into structured, JSON-safe context that an LLM (like GPT-4 or Gemini) can "read" to provide diagnostic explanations.
+
+```python
+class Predictor:
+    def predict(self, image_path: str) -> Dict:
+        # 1. Pre-process and Inference
+        predictions = self._model.predict(img_array, verbose=0)
+        
+        # 2. Extract confidence and per-class probabilities
+        predicted_index = int(np.argmax(predictions[0]))
+        confidence = float(predictions[0][predicted_index])
+        
+        # 3. Return JSON-safe context for LLM agents
+        return {
+            "status": "success",
+            "predicted_class": self.class_names[predicted_index],
+            "confidence": round(confidence, 6),
+            "probabilities": {
+                name: float(round(predictions[0][i], 6))
+                for i, name in enumerate(self.class_names)
+            }
+        }
+```
+
+### Rationale
+By decoupling the model inference from the response generation, we can feed the resulting `probabilities` dictionary directly into an LLM's system prompt. This allows the AI to explain *why* it chose a specific class (e.g., "The model shows a 95% confidence for Glioma") and suggest next steps in a human-readable format.
 
 ## Challenges and Learnings
 
@@ -79,13 +109,6 @@ The project began with significant challenges in curating a high-quality custom 
 
 Curious about the detailed implementation? I have published the entire source code of this project on GitHub. You are free to view, download, or even develop it further.
 
-<CodeBlock
-  compact
-  marginBottom="16"
-  codes={[
-    {
-      code: "git clone https://github.com/muhammadwildanskyyy/detection-brain-tumor-with-cnn.git",
-      language: "bash",
-    },
-  ]}
-/>
+```bash
+git clone https://github.com/muhammadwildanskyyy/detection-brain-tumor-with-cnn.git
+```
